@@ -24,6 +24,7 @@
 #include<list>
 #include<queue>
 #include<stack>
+#include<atomic>
 using namespace std;
 
 ofstream coutt("getpath.txt");
@@ -52,12 +53,14 @@ inline long get_marked_ref(long w){
 }
 
 
+class VNode;  // so that ENode can use it
+
 // ENode structure
 class ENode{
   public:
 	  int val; // data
-	  atomic<struct VNode *>pointv; // pointer to its vertex
-	  atomic<struct ENode *>enext; // pointer to the next ENode
+	  atomic<VNode*>pointv; // pointer to its vertex
+	  atomic<ENode*>enext; // pointer to the next ENode
 };
 
 
@@ -65,8 +68,8 @@ class ENode{
 class VNode{
 	public:
     int val; // data
-    atomic<struct VNode *>vnext; // pointer to the next VNode
-    atomic<struct ENode *>enext; // pointer to the EHead
+    atomic<VNode*>vnext; // pointer to the next VNode
+    atomic<ENode*>enext; // pointer to the EHead
 };
 
 // Vertex's Report Structure
@@ -121,7 +124,125 @@ class Snap_Vnode{
 // the common sentinel snap VNode
 Snap_Vnode *end_snap_Vnode = new Snap_Vnode(NULL, NULL); 
 
+//class GRAPH;
+class graphList
+{
+ public:
+  VNode *Head, *Tail;
+  // creation of new ENode
+  ENode* createE(int key){
+    ENode * newe = new ENode();
+    newe ->val = key;
+    newe ->pointv.store(NULL);
+    newe ->enext.store(NULL);
+    return newe;
+  }
 
+  // creation of new VNode
+  VNode* createV(int key, int n){
+    ENode *EHead = createE(INT_MIN); //create Edge Head
+    ENode *ETail = createE(INT_MAX); // create Edge Tail
+    EHead ->enext.store(ETail); 
+    VNode * newv = new VNode();
+    newv ->val = key;
+    newv ->vnext.store(NULL);
+    newv ->enext.store(EHead);
+    EHead ->pointv.store(newv);
+    ETail ->pointv.store(newv); // # check 1(old2019 had TAIL)
+  return newv;
+  }
+
+  // will update later
+  void ReportInsertVertex(VNode* node)
+  {        
+    //SC = (dereference) PSC
+    //if (SC.IsActive())
+              // if (node is not marked) #Case we insert and delete happened before the snapshot and then insert thread reads isActive after the snapshot starts
+              //     addReport(Report(newNode, INSERt),tid)
+  }
+
+  // will update later
+  void ReportDeleteVertex(VNode* node)
+  {        
+    //SC = (dereference) PSC
+    //if (SC.IsActive())
+              // if (node is not marked) #Case we insert and delete happened before the snapshot and then insert thread reads isActive after the snapshot starts
+              //     addReport(Report(newNode, INSERt),tid)
+  }
+
+
+  // Find pred and curr for VNode(key)     
+  void locateVPlus(VNode *startV, VNode ** n1, VNode ** n2, int key){
+        VNode *succv, *currv, *predv;
+        retry:
+        while(true){
+          predv = startV;
+          currv = predv->vnext.load();
+          while(true){
+          succv = currv->vnext.load();
+          while(currv->vnext.load() != NULL && is_marked_ref((long) succv) && currv->val < key ){ 
+            ReportDeleteVertex(currv);
+            if(!predv->vnext.compare_exchange_strong(currv, (VNode *)get_unmarked_ref((long)succv), memory_order_seq_cst))
+              goto retry;
+            currv = (VNode *)get_unmarked_ref((long)succv);
+            succv = currv->vnext.load(); 
+          }
+          if(currv->val >= key){
+            (*n1) = predv;
+            (*n2) = currv;
+            return;
+          }
+          predv = currv;
+          currv = succv;
+          }
+      }  
+  } 
+
+
+  // add a new vertex in the vertex-list
+  bool AddV(int key, int n)
+  {
+        VNode *predv, *currv;
+        while(true)
+        {
+          locateVPlus(Head, &predv, &currv, key); // find the location, <pred, curr>
+          if(currv->val == key)
+          {
+            ReportInsertVertex(currv);
+            return false; // key already present
+          }       
+          else{
+            VNode *newv = createV(key, n); // create a new vertex node
+            newv->vnext.store(currv);  
+            if(atomic_compare_exchange_strong(&predv->vnext, &currv, newv)) {// added in the vertex-list
+                return true;
+            }
+            } 
+        }
+    }
+
+  // Deletes the vertex from the vertex-list
+  bool RemoveV(int key){
+    VNode *predv, *currv, *succv;
+    while(true){
+      locateVPlus(Head, &predv, &currv, key);
+      if(currv->val != key)
+        return false; // key is not present
+
+      succv = currv->vnext.load(); 
+      if(!is_marked_ref((long) succv)){
+        if(atomic_compare_exchange_strong(&currv->vnext, &succv, (VNode*)get_marked_ref((long)succv))) // logical deletion
+        { 
+          ReportDeleteVertex(currv);
+          if(atomic_compare_exchange_strong(&predv->vnext, &currv, succv)) // physical deletion
+            break;
+        }
+      }	
+    } 
+    return true;
+  }
+
+};
 
 int main()
 {
