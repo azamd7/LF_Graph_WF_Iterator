@@ -194,7 +194,25 @@ public:
     //      addReport(Report(newNode, INSERt),tid)
   }
 
-  // Find pred and curr for VNode(key)
+  // will update later
+  void ReportInsertEdge(ENode *node)
+  {
+    // SC = (dereference) PSC
+    // if (SC.IsActive())
+    //  if (node is not marked) #Case we insert and delete happened before the snapshot and then insert thread reads isActive after the snapshot starts
+    //      addReport(Report(newNode, INSERt),tid)
+  }
+
+  // will update later
+  void ReportDeleteEdge(ENode *node)
+  {
+    // SC = (dereference) PSC
+    // if (SC.IsActive())
+    //  if (node is not marked) #Case we insert and delete happened before the snapshot and then insert thread reads isActive after the snapshot starts
+    //      addReport(Report(newNode, INSERt),tid)
+  }
+
+  // (locV)Find pred and curr for VNode(key)
   // ********************DOUBTS
   //                      - isn't the first while loop in infinte loop if we reach end of list before
   //                         key becomes bigger?
@@ -211,7 +229,7 @@ public:
         succv = currv->vnext.load();
         while (currv->vnext.load() != NULL && is_marked_ref((long)succv) && currv->val < key)
         {
-          ReportDeleteVertex(currv);
+          ReportDeleteVertex(currv);      // format for report not yet decided
           if (!atomic_compare_exchange_strong(&predv->vnext, &currv, (VNode *)get_unmarked_ref((long)succv)))
             goto retry;
           currv = (VNode *)get_unmarked_ref((long)succv);
@@ -238,7 +256,7 @@ public:
       locateV(Head, &predv, &currv, key); // find the location, <pred, curr>
       if (currv->val == key)
       {
-        ReportInsertVertex(currv);
+        ReportInsertVertex(currv);          // format for report not yet decided
         return false; // key already present
       }
       else
@@ -247,6 +265,7 @@ public:
         newv->vnext.store(currv);
         if (atomic_compare_exchange_strong(&predv->vnext, &currv, newv))
         { // added in the vertex-list
+          ReportInsertVertex(newv);         // format for report not yet decided
           return true;
         }
       }
@@ -268,7 +287,7 @@ public:
       {
         if (atomic_compare_exchange_strong(&currv->vnext, &succv, (VNode *)get_marked_ref((long)succv))) // logical deletion
         {
-          ReportDeleteVertex(currv);
+          ReportDeleteVertex(currv);            // format for report not yet decided
           if (atomic_compare_exchange_strong(&predv->vnext, &currv, succv)) // physical deletion
             break;
         }
@@ -311,8 +330,8 @@ public:
   }
 
 
-  // Find pred and curr for VNode(key), used for contains edge     
-  void locateCPlus(VNode *startV, VNode ** n1, VNode ** n2, int key)
+  // (locC)Find pred and curr for VNode(key), used for contains edge     
+  void locateC(VNode *startV, VNode ** n1, VNode ** n2, int key)
   {
        VNode  *currv, *predv;
         predv = startV;
@@ -330,32 +349,33 @@ public:
   } 
 
   // ContainsC+ : Does the same thing as conVPlus, except the fact that it uses LocC which doesn't help like LocE       
-  bool ConCPlus(vlist_t ** n1, vlist_t ** n2, int key1, int key2){
-          vlist_t *curr1, *pred1, *curr2, *pred2;
-          if(key1 < key2){
-          
-             locateCPlus(Head, &pred1, &curr1, key1); //first look for key1 
-             if((!curr1->vnext.load()) || curr1->val != key1)
-	        return false; // key1 is not present in the vertex-list
+  bool ConCPlus(VNode ** n1, VNode ** n2, int key1, int key2)
+  {
+    VNode *curr1, *pred1, *curr2, *pred2;
+    if(key1 < key2)
+    {
+      locateC(Head, &pred1, &curr1, key1); //first look for key1 
+      if((!curr1) || curr1->val != key1)
+	      return false; // key1 is not present in the vertex-list
 	        
-	     locateCPlus(curr1, &pred2, &curr2, key2); // looking for key2 only if key1 present
-             if((!curr2->vnext.load()) || curr2->val != key2)
-	        return false; // key2 is not present in the vertex-list
-         }
-        else{
-             locateCPlus(Head, &pred2, &curr2, key2); //first look for key2 
-             if((!curr2->vnext.load()) || curr2->val != key2)
-	        return false; // key2 is not present in the vertex-list
+	    locateC(curr1, &pred2, &curr2, key2); // looking for key2 only if key1 present
+      if((!curr2) || curr2->val != key2)
+	      return false; // key2 is not present in the vertex-list
+    }
+    else
+    {
+      locateC(Head, &pred2, &curr2, key2); //first look for key2 
+      if((!curr2) || curr2->val != key2)
+	      return false; // key2 is not present in the vertex-list
 	                
-	     locateCPlus(curr2, &pred1, &curr1, key1); // looking for key1 only if key2 present
-             if((!curr1->vnext.load()) || curr1->val != key1)
-	        return false; // key1 is not present in the vertex-list
-
-        }
-     (*n1) = curr1; 
-     (*n2) = curr2; 
+	    locateC(curr2, &pred1, &curr1, key1); // looking for key1 only if key2 present
+      if((!curr1) || curr1->val != key1)
+	      return false; // key1 is not present in the vertex-list
+    }
+    (*n1) = curr1; 
+    (*n2) = curr2; 
     return true;    
- }
+  }
 
   // Contains VNode
   bool ContainsV(int key)
@@ -368,62 +388,110 @@ public:
     VNode *succv = currv->vnext.load();
     if ((currv->vnext.load()) && currv->val == key && !is_marked_ref((long)succv))
     {
-      ReportInsertVertex(currv);
+      ReportInsertVertex(currv);          // format for report not yet decided
       return true;
     }
     else
     {
       if (is_marked_ref((long)succv))
-        ReportDeleteVertex(currv);
+        ReportDeleteVertex(currv);        // format for report not yet decided
       return false;
     }
   }
 
   //Contains ENode       
-  // returns 1 if vertex not present, 2 if edge already present and 3 if edge added
- int ContainsE(int key1, int key2)
- {
+  // returns 1 if vertex not present, 2 if edge already present and 3 if vertex/edge not present
+  // ********************DOUBTS
+  //                      - in old 2019, in the first while loop their condn is diff and wrong maybe
+  int ContainsE(int key1, int key2)
+  {
     ENode *curre, *prede;
     VNode *u,*v;
-    bool flag = ContainsC(&u, &v, key1, key2);
+    bool flag = ConCPlus(&u, &v, key1, key2);
+    
     if(flag == false){             
-          return 1; // either of the vertex is not present
+      return 1;   // either of the vertex is not present
     }   
+    
     curre = u->enext.load(); 
-          while(curre->enext.load() && curre->val < key2){
-           curre =  (ENode*)get_unmarked_ref((long)curre->enext.load());
-          }
-	 if((curre->enext.load()) && curre->val == key2 && !is_marked_ref((long) curre->enext.load()) && !is_marked_ref((long) u->vnext.load()) && !is_marked_ref((long) v->vnext.load())){
-	        return 2;
-	        }
-	  else {
-	        return (char*)ventp;
-          }   
-    }    
+    
+    while(curre && curre->val < key2)
+    {
+      curre =  (ENode*)get_unmarked_ref((long)curre->enext.load());
+    }
+	  if((curre) && curre->val == key2 && !is_marked_ref((long) curre->enext.load()) 
+      && !is_marked_ref((long) u->vnext.load()) && !is_marked_ref((long) v->vnext.load()))
+    {
+      ReportInsertEdge(curre);        // format for report not yet decided
+      return 2;
+	  }
+	  else 
+    {
+	    if(is_marked_ref((long)u))
+      {
+        ReportDeleteVertex(u);    // format for report not yet decided
+      }
+      else if(is_marked_ref((long)v))
+      {
+        ReportDeleteVertex(v);    // format for report not yet decided
+      }
+      else if(is_marked_ref((long)curre->enext.load()))
+      {
+        ReportDeleteEdge(curre);    // format for report not yet decided
+      }
+      return 3;
+    }   
+  }    
 
-    // will update later
-  void ReportInsertEdge(ENode *node)
+  // Deletes an edge from the edge-list if present
+  // returns 1 if vertex not present, 2 if edge not present and 3 if edge removed
+  // ********************DOUBTS
+  //                      - diff in logic old 2019 vs pratik, last triple 'if' 
+  int RemoveE(int key1, int key2)
   {
-    // SC = (dereference) PSC
-    // if (SC.IsActive())
-    //  if (node is not marked) #Case we insert and delete happened before the snapshot and then insert thread reads isActive after the snapshot starts
-    //      addReport(Report(newNode, INSERt),tid)
-  }
+    ENode* prede, *curre, *succe;
+    VNode *u,*v;
+    bool flag = ConVPlus(&u, &v, key1, key2);
+    if(flag == false){             
+      return 1; // either of the vertex is not present
+    }   
+               
+    while(true)
+    {
+      if(is_marked_ref((long) u->vnext.load()))
+      {
+        ReportDeleteVertex(u);    // format for report not yet decided
+        return 1;
+      }
+      else if(is_marked_ref((long) v->vnext.load()))
+      {
+        ReportDeleteVertex(v);    // format for report not yet decided
+        return 1;
+      }
+      locateE(&u, &prede, &curre, key2);
+      if(curre->val != key2){
+        ReportDeleteEdge(curre);    // format for report not yet decided
+        return 2; // edge not present
+      } 
+      succe = curre->enext.load();
+	    if(!is_marked_ref((long) succe))
+      {
+	      if(atomic_compare_exchange_strong(&curre->enext, &succe, (ENode*)get_marked_ref((long)succe))) //  logical deletion
+		    { 
+          ReportDeleteEdge(curre);
+		      if(!atomic_compare_exchange_strong(&prede->enext, &curre, succe)) // physical deletion
+			      break;  
+        }
+	    }
+	  }
+	  return 3;      
+  } 
 
-  // will update later
-  void ReportDeleteEdge(ENode *node)
-  {
-    // SC = (dereference) PSC
-    // if (SC.IsActive())
-    //  if (node is not marked) #Case we insert and delete happened before the snapshot and then insert thread reads isActive after the snapshot starts
-    //      addReport(Report(newNode, INSERt),tid)
-  }
 
-
-  // Find pred and curr for ENode(key) in the edge-list 
+  // (locE) Find pred and curr for ENode(key) in the edge-list 
   // ********************DOUBTS
   //                      - Why two REPORTDELETE inside the third while loop
-  void locateEPlus(VNode **source_of_edge, ENode **n1, ENode **n2, int key)
+  void locateE(VNode **source_of_edge, ENode **n1, ENode **n2, int key)
   {
     ENode *succe, *curre, *prede;
     VNode *tv;
@@ -442,10 +510,10 @@ public:
         while(tv && tv->vnext.load() && curre->enext.load() != NULL && 
               is_marked_ref((long)tv->vnext.load()) && !is_marked_ref((long) succe) && curre->val < key )
         { 
-          ReportDeleteEdge(curre);
+          ReportDeleteEdge(curre);        // format for report not yet decided
           if(!atomic_compare_exchange_strong(&curre->enext, &succe, (ENode*)get_marked_ref((long)succe)))
             goto retry;
-          ReportDeleteEdge(curre);
+          ReportDeleteEdge(curre);        // format for report not yet decided
           if(!atomic_compare_exchange_strong(&prede->enext, &curre, succe))
             goto retry;
           curre = (ENode*)get_unmarked_ref((long)succe);
@@ -498,19 +566,19 @@ public:
     {
       if (is_marked_ref((long)u->vnext.load()))
       {
-        ReportDeleteVertex(u);
+        ReportDeleteVertex(u);        // format for report not yet decided
         return 1; // either of the vertex is not present
       }
       else if(is_marked_ref((long)v->vnext.load()))
       {
-        ReportDeleteVertex(v);
+        ReportDeleteVertex(v);        // format for report not yet decided
         return 1; // either of the vertex is not present
       }
       
-      locateEPlus(&u, &prede, &curre, key2);
+      locateE(&u, &prede, &curre, key2);
       if(curre->val == key2)
       {
-        ReportDeleteEdge(prede);
+        ReportInsertEdge(prede);  // format for report not yet decided
         return 2; // edge already present
       }       
       ENode *newe = createE(key2);// create a new edge node
@@ -518,7 +586,7 @@ public:
       newe->pointv.store(v); // points to its vertex
       if(atomic_compare_exchange_strong(&prede->enext, &curre, newe))  // insertion
       {  
-        ReportInsertEdge(newe);
+        ReportInsertEdge(newe);  // format for report not yet decided
         return 3;
       }
     } // End of while
