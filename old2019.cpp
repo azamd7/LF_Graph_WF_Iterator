@@ -316,6 +316,7 @@ retry2: while(tv && tv->vnext.load() && curre->enext.load() != NULL && is_marked
             } // End of while           
      }    
         
+
 // Deletes an edge from the edge-list if present
  char* RemoveE(int key1, int key2){
                elist_t* prede, *curre, *succe;
@@ -388,6 +389,7 @@ void locateCPlus(vlist_t *startV, vlist_t ** n1, vlist_t ** n2, int key){
     return true;    
  }
  
+
 //Contains ENode       
  char* ContainsE(int key1, int key2){
           elist_t *curre, *prede;
