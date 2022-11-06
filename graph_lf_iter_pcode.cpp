@@ -239,7 +239,8 @@ procedure locE(, k){
                     goto Line 119;
                 end if
                 DeleteReport(ce, E)
-                if (¬CAS(pe.enxt, ce, cnt)) then goto Line 119;
+                if (¬CAS(pe.enxt, ce, cnt)) then 
+                    goto Line 119;
                 end if
                 ce <- cnt; n <- ce.ptv;
                 cnt <- UnMrkdRf(ce.enxt);
