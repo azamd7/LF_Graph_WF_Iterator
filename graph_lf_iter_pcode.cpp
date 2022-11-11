@@ -414,7 +414,7 @@ class SnapCollector
         //iterate through the edge
         while read_edge
             
-            temp_snap_vertex_ptr := snap_vertex_ptr // used to identify current vertex we are iterating
+            temp_snap_vertex_ptr := snap_vertex_ptr // used to identify current vertex we are iterating can be stored locally
             temp_tail_snap_Enode := tail_snap_Enode
             
             //temp_tail_E can be prev vertex tail_E in which case its next is marked(end_E_node) 
