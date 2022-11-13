@@ -413,7 +413,7 @@ class graphList {
                 ReportInsertEdge(prede); // format for report not yet decided
                 return 2; // edge already present
             }
-            Enode * newe = createE(key2,v , curre); // create a new edge node
+            Enode * newe = createE(key2, v , curre); // create a new edge node
             
             if (atomic_compare_exchange_strong( & prede -> enext, & curre, newe)) // insertion
             {

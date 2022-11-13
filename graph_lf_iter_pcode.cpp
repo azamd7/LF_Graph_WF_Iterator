@@ -483,12 +483,12 @@ class SnapCollector
             if (node is not marked) #Case we insert and delete happened before the snapshot and then insert thread reads isActive after the snapshot starts
                 addReport(Report(newNode, INSERt),tid)
 
-    ReportDeleteVertex(Node *victim,Vnode from)
+    ReportDeleteEdge(Node *victim,Vnode from)
         SC = (dereference) PSC
         If (SC.IsActive()) 
             addReport(Report(victim, DELETED,from),tid)
 
-    ReportInsertVertex(Node* node,Vnode from)
+    ReportInsertEdge(Node* node,Vnode from)
         SC = (dereference) PSC
         if (SC.IsActive())
             if (node is not marked) 
