@@ -3,5 +3,6 @@
         "iostream": "cpp",
         "atomic": "cpp",
         "new": "cpp"
-    }
+    },
+    "C_Cpp.errorSquiggles": "Disabled"
 }

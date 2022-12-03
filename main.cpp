@@ -30,7 +30,7 @@
 
 #include <algorithm>
 
-#include <iterator>
+#include <snapcollector.h>
 
 #include <math.h>
 
@@ -75,43 +75,13 @@ class graphList {
         return newv;
     }
 
-    // will update later
-    void ReportInsertVertex(Vnode * node) {
-        // SC = (dereference) PSC
-        // if (SC.IsActive())
-        //  if (node is not marked) #Case we insert and delete happened before the snapshot and then insert thread reads isActive after the snapshot starts
-        //      addReport(Report(newNode, INSERt),tid)
-    }
 
-    // will update later
-    void ReportDeleteVertex(Vnode * node) {
-        // SC = (dereference) PSC
-        // if (SC.IsActive())
-        //  if (node is not marked) #Case we insert and delete happened before the snapshot and then insert thread reads isActive after the snapshot starts
-        //      addReport(Report(newNode, INSERt),tid)
-    }
-
-    // will update later
-    void ReportInsertEdge(Enode * node) {
-        // SC = (dereference) PSC
-        // if (SC.IsActive())
-        //  if (node is not marked) #Case we insert and delete happened before the snapshot and then insert thread reads isActive after the snapshot starts
-        //      addReport(Report(newNode, INSERt),tid)
-    }
-
-    // will update later
-    void ReportDeleteEdge(Enode * node) {
-        // SC = (dereference) PSC
-        // if (SC.IsActive())
-        //  if (node is not marked) #Case we insert and delete happened before the snapshot and then insert thread reads isActive after the snapshot starts
-        //      addReport(Report(newNode, INSERt),tid)
-    }
 
     // (locV)Find pred and curr for Vnode(key)
     // ********************DOUBTS
     //                      - isn't the first while loop in infinte loop if we reach end of list before
     //                         key becomes bigger?
-    void locateV(Vnode * startV, Vnode ** n1, Vnode ** n2, int key) {
+    void locateV(Vnode * startV, Vnode ** n1, Vnode ** n2, int key,int tid) {
         Vnode * succv, * currv, * predv;
         retry:
             while (true) {
@@ -120,7 +90,7 @@ class graphList {
                 while (true) {
                     succv = currv -> vnext.load();
                     while (currv -> vnext.load() != NULL && is_marked_ref((long) succv) && currv -> val < key) {
-                        ReportDeleteVertex(currv); // format for report not yet decided
+                        reportVertex(currv , tid , 1);// 
                         if (!atomic_compare_exchange_strong( & predv -> vnext, & currv, (Vnode * ) get_unmarked_ref((long) succv)))
                             goto retry;
                         currv = (Vnode * ) get_unmarked_ref((long) succv);
@@ -138,17 +108,17 @@ class graphList {
     }
 
     // add a new vertex in the vertex-list
-    bool AddVertex(int key) { //Note : removed int v
+    bool AddVertex(int key, int tid) { //Note : removed int v
         Vnode * predv, * currv;
         while (true) {
             locateV(Head, & predv, & currv, key); // find the location, <pred, curr>
             if (currv -> val == key) {
-                ReportInsertVertex(currv); // format for report not yet decided
+                reportVertex(currv , tid , 2); // 
                 return false; // key already present
             } else {
                 Vnode * newv = createV(key, currv); // create a new vertex node
                 if (atomic_compare_exchange_strong( & predv -> vnext, & currv, newv)) { // added in the vertex-list
-                    ReportInsertVertex(newv); // format for report not yet decided
+                    reportVertex(newv , tid , 2);// 
                     return true;
                 }
             }
@@ -156,7 +126,7 @@ class graphList {
     }
 
     // Deletes the vertex from the vertex-list
-    bool RemoveVertex(int key) {
+    bool RemoveVertex(int key, int tid) {
         Vnode * predv, * currv, * succv;
         while (true) {
             locateV(Head, & predv, & currv, key);
@@ -167,7 +137,7 @@ class graphList {
             if (!is_marked_ref((long) succv)) {
                 if (atomic_compare_exchange_strong( & currv -> vnext, & succv, (Vnode * ) get_marked_ref((long) succv))) // logical deletion
                 {
-                    ReportDeleteVertex(currv); // format for report not yet decided
+                    reportVertex(currv , tid , 1);// 
                     if (atomic_compare_exchange_strong( & predv -> vnext, & currv, succv)) // physical deletion
                         break;
                 }
@@ -247,18 +217,18 @@ class graphList {
     }
 
     // Contains Vnode
-    bool ContainsV(int key) {
+    bool ContainsV(int key, int tid) {
         Vnode * currv = Head;
         while (currv -> vnext.load() && currv -> val < key) {
             currv = (Vnode * ) get_unmarked_ref((long) currv -> vnext.load());
         }
         Vnode * succv = currv -> vnext.load();
         if ((currv -> vnext.load()) && currv -> val == key && !is_marked_ref((long) succv)) {
-            ReportInsertVertex(currv); // format for report not yet decided
+            reportVertex(currv , tid , 2);// 
             return true;
         } else {
             if (is_marked_ref((long) succv))
-                ReportDeleteVertex(currv); // format for report not yet decided
+                reportVertex(currv , tid , 1);// 
             return false;
         }
     }
@@ -267,7 +237,7 @@ class graphList {
     // returns 1 if vertex not present, 2 if edge already present and 3 if vertex/edge not present
     // ********************DOUBTS
     //                      - in old 2019, in the first while loop their condn is diff and wrong maybe
-    int ContainsE(int key1, int key2) {
+    int ContainsE(int key1, int key2, int tid) {
         Enode * curre, * prede;
         Vnode * u, * v;
         bool flag = ConCPlus( & u, & v, key1, key2);
@@ -283,15 +253,15 @@ class graphList {
         }
         if ((curre) && curre -> val == key2 && !is_marked_ref((long) curre -> enext.load()) &&
             !is_marked_ref((long) u -> vnext.load()) && !is_marked_ref((long) v -> vnext.load())) {
-            ReportInsertEdge(curre); // format for report not yet decided
+            reportEdge(curre ,u , tid, 2 );// 
             return 2;
         } else {
             if (is_marked_ref((long) u)) {
-                ReportDeleteVertex(u); // format for report not yet decided
+                reportVertex(u , tid , 1);// 
             } else if (is_marked_ref((long) v)) {
-                ReportDeleteVertex(v); // format for report not yet decided
+                reportVertex(v, tid , v);// 
             } else if (is_marked_ref((long) curre -> enext.load())) {
-                ReportDeleteEdge(curre); // format for report not yet decided
+                reportEdge(curre , u , tid , 1);// 
             }
             return 3;
         }
@@ -301,7 +271,7 @@ class graphList {
     // returns 1 if vertex not present, 2 if edge not present and 3 if edge removed
     // ********************DOUBTS
     //                      - diff in logic old 2019 vs pratik, last triple 'if' 
-    int RemoveE(int key1, int key2) {
+    int RemoveE(int key1, int key2, int tid) {
         Enode * prede, * curre, * succe;
         Vnode * u, * v;
         bool flag = ConVPlus( & u, & v, key1, key2);
@@ -311,22 +281,22 @@ class graphList {
 
         while (true) {
             if (is_marked_ref((long) u -> vnext.load())) {
-                ReportDeleteVertex(u); // format for report not yet decided
+                reportVertex(u , tid , 1);// 
                 return 1;
             } else if (is_marked_ref((long) v -> vnext.load())) {
-                ReportDeleteVertex(v); // format for report not yet decided
+                reportVertex(v , tid, 1);// 
                 return 1;
             }
             locateE( & u, & prede, & curre, key2);
             if (curre -> val != key2) {
-                ReportDeleteEdge(curre); // format for report not yet decided
+                reportEdge(curre , u , tid , 1);// 
                 return 2; // edge not present
             }
             succe = curre -> enext.load();
             if (!is_marked_ref((long) succe)) {
                 if (atomic_compare_exchange_strong( & curre -> enext, & succe, (Enode * ) get_marked_ref((long) succe))) //  logical deletion
                 {
-                    ReportDeleteEdge(curre);
+                    reportEdge(curre , u, tid , 1);
                     if (!atomic_compare_exchange_strong( & prede -> enext, & curre, succe)) // physical deletion
                         break;
                 }
@@ -338,7 +308,7 @@ class graphList {
     // (locE) Find pred and curr for Enode(key) in the edge-list 
     // ********************DOUBTS
     //                      - Why two REPORTDELETE inside the third while loop
-    void locateE(Vnode ** source_of_edge, Enode ** n1, Enode ** n2, int key) {
+    void locateE(Vnode ** source_of_edge, Enode ** n1, Enode ** n2, int key, int tid) {
         Enode * succe, * curre, * prede;
         Vnode * tv;
         retry:
@@ -353,10 +323,10 @@ class graphList {
                         // checking whether the destination vertex is marked (the next edge shouldn't be marked) 
                         while (tv && tv -> vnext.load() && curre -> enext.load() != NULL &&
                             is_marked_ref((long) tv -> vnext.load()) && !is_marked_ref((long) succe) && curre -> val < key) {
-                            ReportDeleteEdge(curre); // format for report not yet decided
+                            reportEdge(curre , *source_of_edge , tid , 1);// 
                             if (!atomic_compare_exchange_strong( & curre -> enext, & succe, (Enode * ) get_marked_ref((long) succe)))
                                 goto retry;
-                            ReportDeleteEdge(curre); // format for report not yet decided
+                            reportEdge(curre , *source_of_edge, tid , 1);// 
                             if (!atomic_compare_exchange_strong( & prede -> enext, & curre, succe))
                                 goto retry;
                             curre = (Enode * ) get_unmarked_ref((long) succe);
@@ -390,7 +360,7 @@ class graphList {
 
     // add a new edge in the edge-list
     // returns 1 if vertex not present, 2 if edge already present and 3 if edge added
-    int AddEdge(int key1, int key2) {
+    int AddEdge(int key1, int key2, int tid) {
         Enode * prede, * curre;
         Vnode * u, * v;
         bool flag = ConVPlus( & u, & v, key1, key2);
@@ -401,23 +371,23 @@ class graphList {
 
         while (true) {
             if (is_marked_ref((long) u -> vnext.load())) {
-                ReportDeleteVertex(u); // format for report not yet decided
+                reportVertex(u , tid, 1);// 
                 return 1; // either of the vertex is not present
             } else if (is_marked_ref((long) v -> vnext.load())) {
-                ReportDeleteVertex(v); // format for report not yet decided
+                reportVertex(v , tid , 1);// 
                 return 1; // either of the vertex is not present
             }
 
             locateE( & u, & prede, & curre, key2);
             if (curre -> val == key2) {
-                ReportInsertEdge(prede); // format for report not yet decided
+                reportEdge(prede , u , tid , 2);// 
                 return 2; // edge already present
             }
             Enode * newe = createE(key2, v , curre); // create a new edge node
             
             if (atomic_compare_exchange_strong( & prede -> enext, & curre, newe)) // insertion
             {
-                ReportInsertEdge(newe); // format for report not yet decided
+                reportEdge(newe , u , tid , 2);// 
                 return 3;
             }
         } // End of while
