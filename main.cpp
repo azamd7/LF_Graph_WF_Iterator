@@ -30,7 +30,7 @@
 
 #include <algorithm>
 
-#include <snapcollector.h>
+#include "snapcollector.h"
 
 #include <math.h>
 
@@ -50,9 +50,6 @@
 
 #include <stack>
 
-#include "graphDS.h"
-
-#include "utility.h"
 
 class graphList {
     public:
@@ -111,7 +108,7 @@ class graphList {
     bool AddVertex(int key, int tid) { //Note : removed int v
         Vnode * predv, * currv;
         while (true) {
-            locateV(Head, & predv, & currv, key); // find the location, <pred, curr>
+            locateV(Head, & predv, & currv, key, tid); // find the location, <pred, curr>
             if (currv -> val == key) {
                 reportVertex(currv , tid , 2); // 
                 return false; // key already present
@@ -129,7 +126,7 @@ class graphList {
     bool RemoveVertex(int key, int tid) {
         Vnode * predv, * currv, * succv;
         while (true) {
-            locateV(Head, & predv, & currv, key);
+            locateV(Head, & predv, & currv, key, tid);
             if (currv -> val != key)
                 return false; // key is not present
 
@@ -150,22 +147,22 @@ class graphList {
     // ********************DOUBTS
     //                      - in old 2019, the first condition in the first two 'if condns' seems wrong
     //                      - check the first 2 if condns, i am assuming that locateV sends NULL also 
-    bool ConVPlus(Vnode ** n1, Vnode ** n2, int key1, int key2) {
+    bool ConVPlus(Vnode ** n1, Vnode ** n2, int key1, int key2, int tid) {
         Vnode * curr1, * pred1, * curr2, * pred2;
         if (key1 < key2) {
-            locateV(Head, & pred1, & curr1, key1); //first look for key1 
+            locateV(Head, & pred1, & curr1, key1, tid); //first look for key1 
             if ((!curr1) || curr1 -> val != key1)
                 return false; // key1 is not present in the vertex-list
 
-            locateV(curr1, & pred2, & curr2, key2); // looking for key2 only if key1 present
+            locateV(curr1, & pred2, & curr2, key2, tid); // looking for key2 only if key1 present
             if ((!curr2) || curr2 -> val != key2)
                 return false; // key2 is not present in the vertex-list
         } else {
-            locateV(Head, & pred2, & curr2, key2); //first look for key2 
+            locateV(Head, & pred2, & curr2, key2, tid); //first look for key2 
             if ((!curr2) || curr2 -> val != key2)
                 return false; // key2 is not present in the vertex-list
 
-            locateV(curr2, & pred1, & curr1, key1); // looking for key1 only if key2 present
+            locateV(curr2, & pred1, & curr1, key1, tid); // looking for key1 only if key2 present
             if ((!curr1) || curr1 -> val != key1)
                 return false; // key1 is not present in the vertex-list
 
@@ -259,7 +256,7 @@ class graphList {
             if (is_marked_ref((long) u)) {
                 reportVertex(u , tid , 1);// 
             } else if (is_marked_ref((long) v)) {
-                reportVertex(v, tid , v);// 
+                reportVertex(v, tid , 1);// 
             } else if (is_marked_ref((long) curre -> enext.load())) {
                 reportEdge(curre , u , tid , 1);// 
             }
@@ -274,7 +271,7 @@ class graphList {
     int RemoveE(int key1, int key2, int tid) {
         Enode * prede, * curre, * succe;
         Vnode * u, * v;
-        bool flag = ConVPlus( & u, & v, key1, key2);
+        bool flag = ConVPlus( & u, & v, key1, key2, tid);
         if (flag == false) {
             return 1; // either of the vertex is not present
         }
@@ -287,7 +284,7 @@ class graphList {
                 reportVertex(v , tid, 1);// 
                 return 1;
             }
-            locateE( & u, & prede, & curre, key2);
+            locateE( & u, & prede, & curre, key2, tid);
             if (curre -> val != key2) {
                 reportEdge(curre , u , tid , 1);// 
                 return 2; // edge not present
@@ -363,7 +360,7 @@ class graphList {
     int AddEdge(int key1, int key2, int tid) {
         Enode * prede, * curre;
         Vnode * u, * v;
-        bool flag = ConVPlus( & u, & v, key1, key2);
+        bool flag = ConVPlus( & u, & v, key1, key2,tid);
 
         if (flag == false) {
             return 1; // either of the vertex is not present
@@ -378,7 +375,7 @@ class graphList {
                 return 1; // either of the vertex is not present
             }
 
-            locateE( & u, & prede, & curre, key2);
+            locateE( & u, & prede, & curre, key2, tid);
             if (curre -> val == key2) {
                 reportEdge(prede , u , tid , 2);// 
                 return 2; // edge already present

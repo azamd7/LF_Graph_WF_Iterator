@@ -8,6 +8,8 @@
 using namespace std;
 
 
+class SnapCollector;
+
 atomic<SnapCollector *> PSC = NULL;
 
 // Vertex's Report Structure
@@ -110,7 +112,6 @@ class SnapCollector{
         bool read_edge = false;// boolean value to indicate if that we are going through the edge
         Report **reports;//array of atomic report for each thread
         //vector <Report> delete_vertex_reports; //This will be used to check the while adding edges 
-        bool read_edge = false; //used indicate that the threads are collecting the edges
     
         int no_of_threads;
     
@@ -505,7 +506,24 @@ class SnapCollector{
 
 
 };
-
+/**
+ * @brief  Checks whether there is active reference to snapcollector object if not creates a new snapcollector object
+ * 
+ * @param graph_head head of graph vertex list which we need to iterate
+ * @param max_threads max number of threads that will can access/create the snapshot object
+ * @return ** SnapCollector 
+ */
+SnapCollector * acquireSnapCollector(Vnode * graph_head, int max_threads){
+    SnapCollector *SC = PSC;
+    if (SC != nullptr and SC->active){
+        return SC;
+    }
+    SnapCollector *newSC = new SnapCollector(graph_head , max_threads);
+    atomic_compare_exchange_strong(&PSC , &SC , newSC);//if this fails some other thread has created and updated a new snapcollector
+    newSC = PSC ;
+    return newSC;
+    
+}
 
 /**
  * @brief Creates a snapshot of a graph object
@@ -526,24 +544,7 @@ SnapCollector * takeSnapshot(Vnode * graph_head ,  int max_threads){
 }
       
 
-/**
- * @brief  Checks whether there is active reference to snapcollector object if not creates a new snapcollector object
- * 
- * @param graph_head head of graph vertex list which we need to iterate
- * @param max_threads max number of threads that will can access/create the snapshot object
- * @return ** SnapCollector 
- */
-SnapCollector * acquireSnapCollector(Vnode * graph_head, int max_threads){
-    SnapCollector *SC = PSC;
-    if (SC != nullptr and SC->active){
-        return SC;
-    }
-    SnapCollector *newSC = new SnapCollector(graph_head , max_threads);
-    atomic_compare_exchange_strong(&PSC , &SC , newSC);//if this fails some other thread has created and updated a new snapcollector
-    newSC = PSC ;
-    return newSC;
-    
-}
+
       
 
 
