@@ -50,19 +50,19 @@
 
 #include <stack>
 
+using namespace std;
 
-class graphList {
+class GraphList {
     public:
-        Vnode * Head;
+        Vnode * head;
 
-   
-    graphList() {
-        Head = new Vnode(INT_MIN ,end_Vnode ,NULL);
+    GraphList() {
+        head = new Vnode(INT_MIN ,end_Vnode ,NULL);
     }
 
     // creation of new Enode
     Enode * createE(int key , Vnode * v_dest , Enode * enext) {
-        Enode * newe = new Enode(key , NULL, enext);
+        Enode * newe = new Enode(key , v_dest, enext);
         return newe;
     }
 
@@ -72,8 +72,6 @@ class graphList {
         Vnode * newv = new Vnode(key, vnext , EHead);
         return newv;
     }
-
-
 
 
 
@@ -89,14 +87,15 @@ class graphList {
                 currv = predv -> vnext.load();
                 while (true) {
                     succv = currv -> vnext.load();
-                    while (currv -> vnext.load() != NULL && is_marked_ref((long) succv) && currv -> val < key) {
+                    while (currv != end_Vnode  && is_marked_ref((long) succv) && currv -> val < key) {
                         reportVertex(currv , tid , 1);// 
                         if (!atomic_compare_exchange_strong( & predv -> vnext, & currv, (Vnode * ) get_unmarked_ref((long) succv)))
                             goto retry;
                         currv = (Vnode * ) get_unmarked_ref((long) succv);
                         succv = currv -> vnext.load();
                     }
-                    if (currv -> val >= key) {
+
+                    if (currv == end_Vnode || currv -> val >= key ) {
                         ( * n1) = predv;
                         ( * n2) = currv;
                         return;
@@ -111,14 +110,19 @@ class graphList {
     bool AddVertex(int key, int tid) { //Note : removed int v
         Vnode * predv, * currv;
         while (true) {
-            locateV(Head, & predv, & currv, key, tid); // find the location, <pred, curr>
+            locateV(head, & predv, & currv, key, tid); // find the location, <pred, curr>
+
+            
             if (currv -> val == key) {
                 reportVertex(currv , tid , 2); // 
+                
                 return false; // key already present
             } else {
                 Vnode * newv = createV(key, currv); // create a new vertex node
+                
                 if (atomic_compare_exchange_strong( & predv -> vnext, & currv, newv)) { // added in the vertex-list
                     reportVertex(newv , tid , 2);// 
+                    
                     return true;
                 }
             }
@@ -129,7 +133,7 @@ class graphList {
     bool RemoveVertex(int key, int tid) {
         Vnode * predv, * currv, * succv;
         while (true) {
-            locateV(Head, & predv, & currv, key, tid);
+            locateV(head, & predv, & currv, key, tid);
             if (currv -> val != key)
                 return false; // key is not present
 
@@ -153,7 +157,7 @@ class graphList {
     bool ConVPlus(Vnode ** n1, Vnode ** n2, int key1, int key2, int tid) {
         Vnode * curr1, * pred1, * curr2, * pred2;
         if (key1 < key2) {
-            locateV(Head, & pred1, & curr1, key1, tid); //first look for key1 
+            locateV(head, & pred1, & curr1, key1, tid); //first look for key1 
             if ((!curr1) || curr1 -> val != key1)
                 return false; // key1 is not present in the vertex-list
 
@@ -161,7 +165,7 @@ class graphList {
             if ((!curr2) || curr2 -> val != key2)
                 return false; // key2 is not present in the vertex-list
         } else {
-            locateV(Head, & pred2, & curr2, key2, tid); //first look for key2 
+            locateV(head, & pred2, & curr2, key2, tid); //first look for key2 
             if ((!curr2) || curr2 -> val != key2)
                 return false; // key2 is not present in the vertex-list
 
@@ -180,7 +184,7 @@ class graphList {
         Vnode * currv, * predv;
         predv = startV;
         currv = startV -> vnext.load();
-        while (currv && currv -> val < key) {
+        while (currv != end_Vnode && currv -> val < key) {
             predv = currv;
             currv = (Vnode * ) get_unmarked_ref((long) currv -> vnext.load());
         }
@@ -195,7 +199,7 @@ class graphList {
     bool ConCPlus(Vnode ** n1, Vnode ** n2, int key1, int key2) {
         Vnode * curr1, * pred1, * curr2, * pred2;
         if (key1 < key2) {
-            locateC(Head, & pred1, & curr1, key1); //first look for key1 
+            locateC(head, & pred1, & curr1, key1); //first look for key1 
             if ((!curr1) || curr1 -> val != key1)
                 return false; // key1 is not present in the vertex-list
 
@@ -203,7 +207,7 @@ class graphList {
             if ((!curr2) || curr2 -> val != key2)
                 return false; // key2 is not present in the vertex-list
         } else {
-            locateC(Head, & pred2, & curr2, key2); //first look for key2 
+            locateC(head, & pred2, & curr2, key2); //first look for key2 
             if ((!curr2) || curr2 -> val != key2)
                 return false; // key2 is not present in the vertex-list
 
@@ -218,12 +222,12 @@ class graphList {
 
     // Contains Vnode
     bool ContainsV(int key, int tid) {
-        Vnode * currv = Head;
-        while (currv -> vnext.load() && currv -> val < key) {
+        Vnode * currv = head;
+        while (currv -> vnext.load() != end_Vnode && currv -> val < key) {
             currv = (Vnode * ) get_unmarked_ref((long) currv -> vnext.load());
         }
         Vnode * succv = currv -> vnext.load();
-        if ((currv -> vnext.load()) && currv -> val == key && !is_marked_ref((long) succv)) {
+        if ( currv -> val == key && !is_marked_ref((long) succv)) {
             reportVertex(currv , tid , 2);// 
             return true;
         } else {
@@ -248,11 +252,11 @@ class graphList {
 
         curre = u -> ehead.load();
 
-        while (curre && curre -> val < key2) {
+        while (curre != end_Enode && curre -> val < key2) {
             curre = (Enode * ) get_unmarked_ref((long) curre -> enext.load());
         }
         if ((curre) && curre -> val == key2 && !is_marked_ref((long) curre -> enext.load()) &&
-            !is_marked_ref((long) u -> vnext.load()) && !is_marked_ref((long) v -> vnext.load())) {
+            !is_marked_ref((long) u -> vnext.load()) && !is_marked_ref((long) curre->v_dest-> vnext.load())) {
             reportEdge(curre ,u , tid, 2 );// 
             return 2;
         } else {
@@ -278,7 +282,7 @@ class graphList {
         if (flag == false) {
             return 1; // either of the vertex is not present
         }
-
+        
         while (true) {
             if (is_marked_ref((long) u -> vnext.load())) {
                 reportVertex(u , tid , 1);// 
@@ -288,6 +292,7 @@ class graphList {
                 return 1;
             }
             locateE( & u, & prede, & curre, key2, tid);
+            
             if (curre -> val != key2) {
                 reportEdge(curre , u , tid , 1);// 
                 return 2; // edge not present
@@ -313,41 +318,42 @@ class graphList {
         Vnode * tv;
         retry:
             while (true) {
+
                 prede = ( * source_of_edge) -> ehead.load();
                 curre = prede -> enext.load();
+                
                 while (true) {
                     succe = curre -> enext.load();
                     tv = curre->v_dest;
                     /*helping: delete one or more enodes whose vertex was marked*/
+                   
                     retry2:
                         // checking whether the destination vertex is marked (the next edge shouldn't be marked) 
-                        while (tv && tv -> vnext.load() && curre -> enext.load() != NULL &&
-                            is_marked_ref((long) tv -> vnext.load()) && !is_marked_ref((long) succe) && curre -> val < key) {
-                            reportEdge(curre , *source_of_edge , tid , 1);// 
+                        //Note : Removed "tv" conditions
+                        /*helping: delete one or more enodes which are marked*/
+                                
+                        while ( curre != end_Enode &&
+                            (is_marked_ref((long) tv -> vnext.load()) || is_marked_ref((long) succe)) && curre -> val < key) {
+                            reportEdge(curre , *source_of_edge , tid , 1);
+                            //marking curr enode
                             if (!atomic_compare_exchange_strong( & curre -> enext, & succe, (Enode * ) get_marked_ref((long) succe)))
                                 goto retry;
-                            reportEdge(curre , *source_of_edge, tid , 1);// 
-                            if (!atomic_compare_exchange_strong( & prede -> enext, & curre, succe))
-                                goto retry;
+                            //physical deletion of enode if already marked
+                            //Note : remove goto retry if physical deletion fails
+                            atomic_compare_exchange_strong( & prede -> enext, & curre, succe);
+                                
                             curre = (Enode * ) get_unmarked_ref((long) succe);
                             succe = curre -> enext.load();
                             tv = curre -> v_dest;
                         }
-
-                    /*helping: delete one or more enodes which are marked*/
-                    while (curre -> enext.load() != NULL && is_marked_ref((long) succe) &&
-                        !is_marked_ref((long) tv -> vnext.load()) && curre -> val < key) {
-                        if (!atomic_compare_exchange_strong( & prede -> enext, & curre, (Enode * ) get_unmarked_ref((long) succe)))
-                            goto retry;
-                        curre = (Enode * ) get_unmarked_ref((long) succe);
-                        succe = curre -> enext.load();
-                        tv = curre -> v_dest;
-                    }
-
-                    if (tv && tv -> vnext.load() && is_marked_ref((long) tv -> vnext.load()) &&
-                        curre -> enext.load() != NULL && curre -> val < key)
-                        goto retry2;
-                    if (curre -> val >= key) {
+                    
+                    
+                    //Note : Commented below 3 lines : not sure of the use of these
+                    //if (is_marked_ref((long) tv -> vnext.load()) &&
+                    //    curre != end_Enode && curre -> val < key)
+                    //    goto retry2;
+                    if (curre == end_Enode || curre -> val >= key) {
+                        
                         ( * n1) = prede;
                         ( * n2) = curre;
                         return;
@@ -364,11 +370,11 @@ class graphList {
         Enode * prede, * curre;
         Vnode * u, * v;
         bool flag = ConVPlus( & u, & v, key1, key2,tid);
-
         if (flag == false) {
             return 1; // either of the vertex is not present
         }
-
+        //cout << key1 <<endl;
+        //cout << key2 << endl;
         while (true) {
             if (is_marked_ref((long) u -> vnext.load())) {
                 reportVertex(u , tid, 1);// 
@@ -377,16 +383,18 @@ class graphList {
                 reportVertex(v , tid , 1);// 
                 return 1; // either of the vertex is not present
             }
-
+            
             locateE( & u, & prede, & curre, key2, tid);
+             
             if (curre -> val == key2) {
-                reportEdge(prede , u , tid , 2);// 
+                reportEdge(curre , u , tid , 2);// 
                 return 2; // edge already present
             }
             Enode * newe = createE(key2, v , curre); // create a new edge node
             
             if (atomic_compare_exchange_strong( & prede -> enext, & curre, newe)) // insertion
             {
+                
                 reportEdge(newe , u , tid , 2);// 
                 return 3;
             }
@@ -397,10 +405,41 @@ class graphList {
 
 
 
-using namespace std;
 
-ofstream coutt("getpath.txt");
-// freopen("error.txt", "w", stderr );
+
+
+
+void print_graph(fstream *logfile , Vnode * graph_headv){
+    cout << "Graph ----------" << endl;
+    Vnode * vnode = graph_headv->vnext;
+    while(vnode != end_Vnode){
+        string val = to_string(vnode->val);
+        bool is_marked = is_marked_ref((long)vnode->vnext.load());
+        if(is_marked){
+            val = "!" + val;
+        }
+        cout << val ;
+
+        Enode *enode = vnode->ehead.load()->enext;
+        while(enode != end_Enode){
+            string e_val = to_string(enode->val);
+            bool e_is_marked = is_marked_ref((long)enode->enext.load());
+            if (e_is_marked){
+                e_val = "!" + e_val;
+            }
+            e_val = " -> " + e_val ;
+            cout << e_val ;
+            enode = enode -> enext;
+            
+        }
+        cout << endl;
+        cout << "|" <<endl;
+        vnode = vnode->vnext;
+
+    }
+    cout << "Tail" << endl;
+    cout << "Graph(End)-------" << endl;
+}
 
 
 
@@ -410,6 +449,38 @@ ofstream coutt("getpath.txt");
 
 int main() {
     // abc
+    string logFileName = "../output/logfileParr.txt";
+    fstream logfile;
+    logfile.open(logFileName,ios::out);
+
+    GraphList * graph = new GraphList();
+    SnapCollector * sc =  takeSnapshot(graph->head , 2);
+    
+    graph->AddVertex(1 , 1);
+    
+    graph->AddVertex(5 , 1);
+    graph->AddVertex(4 , 1);
+    
+
+    graph->AddEdge(1 , 4 , 1);
+    graph->AddEdge(1 , 4 , 1);
+    
+    graph->AddEdge(5 , 4 , 1);
+    graph->RemoveVertex(4 ,1);
+    graph->AddEdge(1, 5 ,1);
+    graph->RemoveE(5, 4 , 1);
+    graph->AddVertex(4 , 1);
+    graph->AddEdge(1,6 , 1);
+    graph->AddEdge(4,5 , 1);
+    
+    sc->blockFurtherReports();
+    
+    sc->reconstructUsingReports();
+    
+    print_graph(&logfile , graph->head);
+    sc->print_snap_graph(&logfile);
+    printf(graph->ContainsE(5,4,1) != 2? "False\n" : "True\n");
+
 
     return 0;
 }
