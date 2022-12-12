@@ -50,6 +50,10 @@
 
 #include <stack>
 
+#include <random>
+
+#include <thread>
+
 using namespace std;
 
 class GraphList {
@@ -79,7 +83,7 @@ class GraphList {
     // ********************DOUBTS
     //                      - isn't the first while loop in infinte loop if we reach end of list before
     //                         key becomes bigger?
-    void locateV(Vnode * startV, Vnode ** n1, Vnode ** n2, int key,int tid) {
+    void locateV(Vnode * startV, Vnode ** n1, Vnode ** n2, int key,int tid, fstream *logfile) {
         Vnode * succv, * currv, * predv;
         retry:
             while (true) {
@@ -88,7 +92,7 @@ class GraphList {
                 while (true) {
                     succv = currv -> vnext.load();
                     while (currv != end_Vnode  && is_marked_ref((long) succv) && currv -> val < key) {
-                        reportVertex(currv , tid , 1);// 
+                        reportVertex(currv , tid , 1, logfile);// 
                         if (!atomic_compare_exchange_strong( & predv -> vnext, & currv, (Vnode * ) get_unmarked_ref((long) succv)))
                             goto retry;
                         currv = (Vnode * ) get_unmarked_ref((long) succv);
@@ -107,21 +111,21 @@ class GraphList {
     }
 
     // add a new vertex in the vertex-list
-    bool AddVertex(int key, int tid) { //Note : removed int v
+    bool AddVertex(int key, int tid, fstream *logfile) { //Note : removed int v
         Vnode * predv, * currv;
         while (true) {
-            locateV(head, & predv, & currv, key, tid); // find the location, <pred, curr>
+            locateV(head, & predv, & currv, key, tid, logfile); // find the location, <pred, curr>
 
             
             if (currv -> val == key) {
-                reportVertex(currv , tid , 2); // 
+                reportVertex(currv , tid , 2, logfile); // 
                 
                 return false; // key already present
             } else {
                 Vnode * newv = createV(key, currv); // create a new vertex node
                 
                 if (atomic_compare_exchange_strong( & predv -> vnext, & currv, newv)) { // added in the vertex-list
-                    reportVertex(newv , tid , 2);// 
+                    reportVertex(newv , tid , 2, logfile);// 
                     
                     return true;
                 }
@@ -130,10 +134,10 @@ class GraphList {
     }
 
     // Deletes the vertex from the vertex-list
-    bool RemoveVertex(int key, int tid) {
+    bool RemoveVertex(int key, int tid, fstream *logfile) {
         Vnode * predv, * currv, * succv;
         while (true) {
-            locateV(head, & predv, & currv, key, tid);
+            locateV(head, & predv, & currv, key, tid, logfile);
             if (currv -> val != key)
                 return false; // key is not present
 
@@ -141,7 +145,7 @@ class GraphList {
             if (!is_marked_ref((long) succv)) {
                 if (atomic_compare_exchange_strong( & currv -> vnext, & succv, (Vnode * ) get_marked_ref((long) succv))) // logical deletion
                 {
-                    reportVertex(currv , tid , 1);// 
+                    reportVertex(currv , tid , 1, logfile);// 
                     if (atomic_compare_exchange_strong( & predv -> vnext, & currv, succv)) // physical deletion
                         break;
                 }
@@ -154,22 +158,22 @@ class GraphList {
     // ********************DOUBTS
     //                      - in old 2019, the first condition in the first two 'if condns' seems wrong
     //                      - check the first 2 if condns, i am assuming that locateV sends NULL also 
-    bool ConVPlus(Vnode ** n1, Vnode ** n2, int key1, int key2, int tid) {
+    bool ConVPlus(Vnode ** n1, Vnode ** n2, int key1, int key2, int tid, fstream *logfile) {
         Vnode * curr1, * pred1, * curr2, * pred2;
         if (key1 < key2) {
-            locateV(head, & pred1, & curr1, key1, tid); //first look for key1 
+            locateV(head, & pred1, & curr1, key1, tid, logfile); //first look for key1 
             if ((!curr1) || curr1 -> val != key1)
                 return false; // key1 is not present in the vertex-list
 
-            locateV(curr1, & pred2, & curr2, key2, tid); // looking for key2 only if key1 present
+            locateV(curr1, & pred2, & curr2, key2, tid, logfile); // looking for key2 only if key1 present
             if ((!curr2) || curr2 -> val != key2)
                 return false; // key2 is not present in the vertex-list
         } else {
-            locateV(head, & pred2, & curr2, key2, tid); //first look for key2 
+            locateV(head, & pred2, & curr2, key2, tid, logfile); //first look for key2 
             if ((!curr2) || curr2 -> val != key2)
                 return false; // key2 is not present in the vertex-list
 
-            locateV(curr2, & pred1, & curr1, key1, tid); // looking for key1 only if key2 present
+            locateV(curr2, & pred1, & curr1, key1, tid, logfile); // looking for key1 only if key2 present
             if ((!curr1) || curr1 -> val != key1)
                 return false; // key1 is not present in the vertex-list
 
@@ -221,18 +225,18 @@ class GraphList {
     }
 
     // Contains Vnode
-    bool ContainsV(int key, int tid) {
+    bool ContainsV(int key, int tid, fstream *logfile) {
         Vnode * currv = head;
         while (currv -> vnext.load() != end_Vnode && currv -> val < key) {
             currv = (Vnode * ) get_unmarked_ref((long) currv -> vnext.load());
         }
         Vnode * succv = currv -> vnext.load();
         if ( currv -> val == key && !is_marked_ref((long) succv)) {
-            reportVertex(currv , tid , 2);// 
+            reportVertex(currv , tid , 2, logfile);// 
             return true;
         } else {
             if (is_marked_ref((long) succv))
-                reportVertex(currv , tid , 1);// 
+                reportVertex(currv , tid , 1, logfile);// 
             return false;
         }
     }
@@ -241,7 +245,7 @@ class GraphList {
     // returns 1 if vertex not present, 2 if edge already present and 3 if vertex/edge not present
     // ********************DOUBTS
     //                      - in old 2019, in the first while loop their condn is diff and wrong maybe
-    int ContainsE(int key1, int key2, int tid) {
+    int ContainsE(int key1, int key2, int tid, fstream *logfile) {
         Enode * curre, * prede;
         Vnode * u, * v;
         bool flag = ConCPlus( & u, & v, key1, key2);
@@ -257,15 +261,15 @@ class GraphList {
         }
         if ((curre) && curre -> val == key2 && !is_marked_ref((long) curre -> enext.load()) &&
             !is_marked_ref((long) u -> vnext.load()) && !is_marked_ref((long) curre->v_dest-> vnext.load())) {
-            reportEdge(curre ,u , tid, 2 );// 
+            reportEdge(curre ,u , tid, 2 ,logfile);// 
             return 2;
         } else {
             if (is_marked_ref((long) u)) {
-                reportVertex(u , tid , 1);// 
+                reportVertex(u , tid , 1,logfile);// 
             } else if (is_marked_ref((long) v)) {
-                reportVertex(v, tid , 1);// 
+                reportVertex(v, tid , 1, logfile);// 
             } else if (is_marked_ref((long) curre -> enext.load())) {
-                reportEdge(curre , u , tid , 1);// 
+                reportEdge(curre , u , tid , 1,logfile);// 
             }
             return 3;
         }
@@ -275,33 +279,33 @@ class GraphList {
     // returns 1 if vertex not present, 2 if edge not present and 3 if edge removed
     // ********************DOUBTS
     //                      - diff in logic old 2019 vs pratik, last triple 'if' 
-    int RemoveE(int key1, int key2, int tid) {
+    int RemoveE(int key1, int key2, int tid, fstream * logfile) {
         Enode * prede, * curre, * succe;
         Vnode * u, * v;
-        bool flag = ConVPlus( & u, & v, key1, key2, tid);
+        bool flag = ConVPlus( & u, & v, key1, key2, tid, logfile);
         if (flag == false) {
             return 1; // either of the vertex is not present
         }
         
         while (true) {
             if (is_marked_ref((long) u -> vnext.load())) {
-                reportVertex(u , tid , 1);// 
+                reportVertex(u , tid , 1, logfile);// 
                 return 1;
             } else if (is_marked_ref((long) v -> vnext.load())) {
-                reportVertex(v , tid, 1);// 
+                reportVertex(v , tid, 1, logfile);// 
                 return 1;
             }
-            locateE( & u, & prede, & curre, key2, tid);
+            locateE( & u, & prede, & curre, key2, tid, logfile);
             
             if (curre -> val != key2) {
-                reportEdge(curre , u , tid , 1);// 
+                reportEdge(curre , u , tid , 1, logfile);// 
                 return 2; // edge not present
             }
             succe = curre -> enext.load();
             if (!is_marked_ref((long) succe)) {
                 if (atomic_compare_exchange_strong( & curre -> enext, & succe, (Enode * ) get_marked_ref((long) succe))) //  logical deletion
                 {
-                    reportEdge(curre , u, tid , 1);
+                    reportEdge(curre , u, tid , 1, logfile);
                     if (!atomic_compare_exchange_strong( & prede -> enext, & curre, succe)) // physical deletion
                         break;
                 }
@@ -313,7 +317,7 @@ class GraphList {
     // (locE) Find pred and curr for Enode(key) in the edge-list 
     // ********************DOUBTS
     //                      - Why two REPORTDELETE inside the third while loop
-    void locateE(Vnode ** source_of_edge, Enode ** n1, Enode ** n2, int key, int tid) {
+    void locateE(Vnode ** source_of_edge, Enode ** n1, Enode ** n2, int key, int tid, fstream *logfile) {
         Enode * succe, * curre, * prede;
         Vnode * tv;
         retry:
@@ -334,7 +338,7 @@ class GraphList {
                                 
                         while ( curre != end_Enode &&
                             (is_marked_ref((long) tv -> vnext.load()) || is_marked_ref((long) succe)) && curre -> val < key) {
-                            reportEdge(curre , *source_of_edge , tid , 1);
+                            reportEdge(curre , *source_of_edge , tid , 1, logfile);
                             //marking curr enode
                             if (!atomic_compare_exchange_strong( & curre -> enext, & succe, (Enode * ) get_marked_ref((long) succe)))
                                 goto retry;
@@ -366,10 +370,10 @@ class GraphList {
 
     // add a new edge in the edge-list
     // returns 1 if vertex not present, 2 if edge already present and 3 if edge added
-    int AddEdge(int key1, int key2, int tid) {
+    int AddEdge(int key1, int key2, int tid, fstream *logfile) {
         Enode * prede, * curre;
         Vnode * u, * v;
-        bool flag = ConVPlus( & u, & v, key1, key2,tid);
+        bool flag = ConVPlus( & u, & v, key1, key2,tid, logfile);
         if (flag == false) {
             return 1; // either of the vertex is not present
         }
@@ -377,17 +381,17 @@ class GraphList {
         //cout << key2 << endl;
         while (true) {
             if (is_marked_ref((long) u -> vnext.load())) {
-                reportVertex(u , tid, 1);// 
+                reportVertex(u , tid, 1, logfile);// 
                 return 1; // either of the vertex is not present
             } else if (is_marked_ref((long) v -> vnext.load())) {
-                reportVertex(v , tid , 1);// 
+                reportVertex(v , tid , 1, logfile);// 
                 return 1; // either of the vertex is not present
             }
             
-            locateE( & u, & prede, & curre, key2, tid);
+            locateE( & u, & prede, & curre, key2, tid, logfile);
              
             if (curre -> val == key2) {
-                reportEdge(curre , u , tid , 2);// 
+                reportEdge(curre , u , tid , 2 , logfile);// 
                 return 2; // edge already present
             }
             Enode * newe = createE(key2, v , curre); // create a new edge node
@@ -395,7 +399,7 @@ class GraphList {
             if (atomic_compare_exchange_strong( & prede -> enext, & curre, newe)) // insertion
             {
                 
-                reportEdge(newe , u , tid , 2);// 
+                reportEdge(newe , u , tid , 2, logfile);// 
                 return 3;
             }
         } // End of while
@@ -410,7 +414,7 @@ class GraphList {
 
 
 void print_graph(fstream *logfile , Vnode * graph_headv){
-    cout << "Graph ----------" << endl;
+    (*logfile) << "Graph ----------" << endl;
     Vnode * vnode = graph_headv->vnext;
     while(vnode != end_Vnode){
         string val = to_string(vnode->val);
@@ -418,7 +422,7 @@ void print_graph(fstream *logfile , Vnode * graph_headv){
         if(is_marked){
             val = "!" + val;
         }
-        cout << val ;
+        (*logfile) << val ;
 
         Enode *enode = vnode->ehead.load()->enext;
         while(enode != end_Enode){
@@ -428,20 +432,120 @@ void print_graph(fstream *logfile , Vnode * graph_headv){
                 e_val = "!" + e_val;
             }
             e_val = " -> " + e_val ;
-            cout << e_val ;
+            (*logfile) << e_val ;
             enode = enode -> enext;
             
         }
-        cout << endl;
-        cout << "|" <<endl;
+        (*logfile) << endl;
+        (*logfile) << "|" <<endl;
         vnode = vnode->vnext;
 
     }
-    cout << "Tail" << endl;
-    cout << "Graph(End)-------" << endl;
+    (*logfile) << "Tail" << endl;
+    (*logfile) << "Graph(End)-------" << endl;
 }
+/**
+ * @brief paramteter that are to be passed on to the threads
+ * 
+ */
+struct thread_args{
+    GraphList *graph ;
+    fstream * logfile ;
+    int thread_num;
+    bool debug ;  
+    int max_nodes;
+    bool * continue_exec; 
+    int max_threads;
+    
+};
 
+/**
+ * @brief 
+ * 
+ * prob_arr will denote prob of different operations
+ * 0->Add vertex
+ * 1->Remove vertex
+ * 2->Add edge
+ * 3->Delete edge
+ * 4->snapshot
+ * 
+ * 
+ * @param t_args 
+ * @return ** void* 
+ */
+void *thread_funct(void * t_args){
 
+    GraphList *graph = ((struct thread_args *)t_args)->graph;
+    fstream * logfile = ((struct thread_args *)t_args)->logfile;
+    bool debug = ((struct thread_args *)t_args)->debug;
+    int thread_num = ((struct thread_args *)t_args)->thread_num;
+    int max_nodes = ((struct thread_args *)t_args)->max_nodes;
+    int max_threads = ((struct thread_args *)t_args)->max_threads;
+    //int prob_arr[4] = ((struct thread_args *)t_args)->prob_arr;
+    bool *continue_exec = ((struct thread_args *)t_args)->continue_exec;
+    
+    string logFileName = "../output/logfileParr" + to_string(thread_num) +".txt";
+    cout << logFileName << endl;
+    fstream logfile_th;
+    logfile_th.open(logFileName,ios::out);
+    while(*continue_exec){
+        int op_index = rand() % 5;
+        op_index = 4;
+        //logfile_th << "op_index" << op_index << endl;
+        switch(op_index) {
+        case 0://add vertex
+            {
+                int rand_node_id = rand() % max_nodes;    
+                logfile_th << " thread id : " << thread_num << "Add vertex  : " << rand_node_id << endl;
+                graph->AddVertex(rand_node_id,thread_num,&logfile_th );
+            }
+            break;
+        case 1:
+            // delete vertex
+            {
+                int rand_node_id = rand() % max_nodes;    
+                logfile_th << " thread id : " << thread_num << "Delete vertex : " << rand_node_id << endl;
+                graph->RemoveVertex(rand_node_id,thread_num,&logfile_th);
+            }
+            break;
+        case 2:
+            // add edge
+            {
+                int rand_source = rand() % max_nodes; 
+                int rand_dest = rand() % max_nodes;
+                while(rand_dest == rand_source){
+                    rand_dest = rand() % max_nodes;
+                }   
+                logfile_th << " thread id : " << thread_num << "Add edge : " << rand_source << " " << rand_dest << endl;
+                graph->AddEdge(rand_source , rand_dest , thread_num,&logfile_th);
+            }
+            break;
+        case 3:
+            //delete edge
+            {   int rand_source = rand() % max_nodes; 
+                int rand_dest = rand() % max_nodes;
+                while(rand_dest == rand_source){
+                    rand_dest = rand() % max_nodes;
+                }   
+                logfile_th << " thread id : " << thread_num << " Delete edge : " << rand_source << " " << rand_dest  << endl;
+                graph->RemoveE(rand_source , rand_dest , thread_num,&logfile_th);
+            }
+            break;
+        case 4:
+            //snapshot
+            {
+                logfile_th << " thread id : " << thread_num << " Collecting snapshot"  << endl;
+                //print_graph(&logfile_th , graph->head);
+                SnapCollector * sc =  takeSnapshot(graph->head , thread_num, &logfile_th);
+                //sc->print_snap_graph(&logfile_th);
+            }
+            break;
+        }
+    }
+
+    return nullptr;
+
+}
 
 
 // class GRAPH;
@@ -450,37 +554,68 @@ void print_graph(fstream *logfile , Vnode * graph_headv){
 int main() {
     // abc
     string logFileName = "../output/logfileParr.txt";
+    //will be used in script
+    string numberOfThreadsStr = "2";
+    int   num_of_threads = stoi(numberOfThreadsStr);
+    bool debug = false;
+
+
     fstream logfile;
     logfile.open(logFileName,ios::out);
 
     GraphList * graph = new GraphList();
-    SnapCollector * sc =  takeSnapshot(graph->head , 2);
     
-    graph->AddVertex(1 , 1);
+    graph->AddVertex(1 , 1, &logfile);
     
-    graph->AddVertex(5 , 1);
-    graph->AddVertex(4 , 1);
+    graph->AddVertex(5 , 1, &logfile);
+    graph->AddVertex(4 , 1, &logfile);
     
 
-    graph->AddEdge(1 , 4 , 1);
-    graph->AddEdge(1 , 4 , 1);
+    graph->AddEdge(1, 4, 1, &logfile);
+    graph->AddEdge(1, 4, 1, &logfile);
     
-    graph->AddEdge(5 , 4 , 1);
-    graph->RemoveVertex(4 ,1);
-    graph->AddEdge(1, 5 ,1);
-    graph->RemoveE(5, 4 , 1);
-    graph->AddVertex(4 , 1);
-    graph->AddEdge(1,6 , 1);
-    graph->AddEdge(4,5 , 1);
-    
-    sc->blockFurtherReports();
-    
-    sc->reconstructUsingReports();
-    
-    print_graph(&logfile , graph->head);
-    sc->print_snap_graph(&logfile);
-    printf(graph->ContainsE(5,4,1) != 2? "False\n" : "True\n");
+    graph->AddEdge(5, 4, 1, &logfile);
+    graph->RemoveVertex(4 ,1, &logfile);
+    graph->AddEdge(1, 5, 1, &logfile);
+    graph->RemoveE(5, 4, 1, &logfile);
+    graph->AddVertex(4, 1, &logfile);
+    graph->AddEdge(1, 6, 1, &logfile);
+    graph->AddEdge(4, 5, 1, &logfile);
+    //print_graph(&logfile , graph->head);
 
+
+
+    //SnapCollector * sc =  takeSnapshot(graph->head , 2);
+    
+    //sc->print_snap_graph(&logfile);
+    //printf(graph->ContainsE(5,4,1) != 2? "False\n" : "True\n");
+    struct thread_args t_args[num_of_threads];
+    pthread_t threads[num_of_threads];
+    std::cout << "ASdas" << endl;
+    bool *continue_exec = new bool(true);
+    for( int i=0;i < num_of_threads ;i++){
+
+        
+
+        t_args[i].continue_exec = continue_exec;
+        
+        t_args[i].logfile = &logfile;
+        t_args[i].graph = graph;
+        t_args[i].debug = debug;
+        t_args[i].thread_num = i;
+        t_args[i].max_nodes = 10;
+        t_args[i].max_threads = num_of_threads;
+        std::cout << "Thread num : " << t_args[i].thread_num << endl;
+        pthread_create(&threads[i], NULL, thread_funct, &t_args[i]);
+        
+    }
+    sleep(10);
+    std::cout << *continue_exec <<endl;
+    *continue_exec = false;
+    std::cout << *continue_exec <<endl;
+    for(int i=0 ; i< num_of_threads;i++){
+        pthread_join(threads[i], NULL);
+    }
 
     return 0;
 }
