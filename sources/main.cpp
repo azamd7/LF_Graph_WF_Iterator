@@ -56,6 +56,8 @@
 
 using namespace std;
 
+void print_graph(fstream *logfile , Vnode * graph_headv);
+
 class GraphList {
     public:
         Vnode * head;
@@ -88,13 +90,21 @@ class GraphList {
         retry:
             while (true) {
                 predv = startV;
-                currv = predv -> vnext.load();
+                (*logfile) << "Search starting from " << startV->val << endl;
+                currv = (Vnode *)get_unmarked_ref((long)predv -> vnext.load());
                 while (true) {
+                    //print_graph(logfile , this->head);
+                    (*logfile) << "is currv is marked " << (is_marked_ref((long)currv)) << endl;
                     succv = currv -> vnext.load();
-                    while (currv != end_Vnode  && is_marked_ref((long) succv) && currv -> val < key) {
+                    while (currv != end_Vnode  && is_marked_ref((long) succv) && currv -> val <= key) {
                         reportVertex(currv , tid , 1, logfile);// 
+                        //physical deletion of vertex
+                        (*logfile) << "Val : " << predv->vnext << "EXpected : " << currv << endl;
                         if (!atomic_compare_exchange_strong( & predv -> vnext, & currv, (Vnode * ) get_unmarked_ref((long) succv)))
-                            goto retry;
+                        {
+                            (*logfile) << "Physical deletion not successfull , Retry.. " << endl;
+                            goto retry; 
+                        }
                         currv = (Vnode * ) get_unmarked_ref((long) succv);
                         succv = currv -> vnext.load();
                     }
@@ -137,9 +147,13 @@ class GraphList {
     bool RemoveVertex(int key, int tid, fstream *logfile) {
         Vnode * predv, * currv, * succv;
         while (true) {
+            (*logfile) << "Calling locate vertex" <<endl;
             locateV(head, & predv, & currv, key, tid, logfile);
-            if (currv -> val != key)
+            (*logfile) << "locateV" << currv->val <<endl;
+            if (currv -> val != key ){
+                (*logfile) << "Vertex not found with key : " << key << endl;
                 return false; // key is not present
+            }
 
             succv = currv -> vnext.load();
             if (!is_marked_ref((long) succv)) {
@@ -147,7 +161,10 @@ class GraphList {
                 {
                     reportVertex(currv , tid , 1, logfile);// 
                     if (atomic_compare_exchange_strong( & predv -> vnext, & currv, succv)) // physical deletion
+                    {   
+                        (*logfile) << "physically deleted " << endl; 
                         break;
+                    }
                 }
             }
         }
@@ -165,7 +182,7 @@ class GraphList {
             if ((!curr1) || curr1 -> val != key1)
                 return false; // key1 is not present in the vertex-list
 
-            locateV(curr1, & pred2, & curr2, key2, tid, logfile); // looking for key2 only if key1 present
+            locateV(head, & pred2, & curr2, key2, tid, logfile); // looking for key2 only if key1 present
             if ((!curr2) || curr2 -> val != key2)
                 return false; // key2 is not present in the vertex-list
         } else {
@@ -173,7 +190,7 @@ class GraphList {
             if ((!curr2) || curr2 -> val != key2)
                 return false; // key2 is not present in the vertex-list
 
-            locateV(curr2, & pred1, & curr1, key1, tid, logfile); // looking for key1 only if key2 present
+            locateV(head, & pred1, & curr1, key1, tid, logfile); // looking for key1 only if key2 present
             if ((!curr1) || curr1 -> val != key1)
                 return false; // key1 is not present in the vertex-list
 
@@ -187,7 +204,7 @@ class GraphList {
     void locateC(Vnode * startV, Vnode ** n1, Vnode ** n2, int key) {
         Vnode * currv, * predv;
         predv = startV;
-        currv = startV -> vnext.load();
+        currv = (Vnode * ) get_unmarked_ref((long) startV-> vnext.load());;
         while (currv != end_Vnode && currv -> val < key) {
             predv = currv;
             currv = (Vnode * ) get_unmarked_ref((long) currv -> vnext.load());
@@ -207,7 +224,7 @@ class GraphList {
             if ((!curr1) || curr1 -> val != key1)
                 return false; // key1 is not present in the vertex-list
 
-            locateC(curr1, & pred2, & curr2, key2); // looking for key2 only if key1 present
+            locateC(head, & pred2, & curr2, key2); // looking for key2 only if key1 present
             if ((!curr2) || curr2 -> val != key2)
                 return false; // key2 is not present in the vertex-list
         } else {
@@ -215,7 +232,7 @@ class GraphList {
             if ((!curr2) || curr2 -> val != key2)
                 return false; // key2 is not present in the vertex-list
 
-            locateC(curr2, & pred1, & curr1, key1); // looking for key1 only if key2 present
+            locateC(head, & pred1, & curr1, key1); // looking for key1 only if key2 present
             if ((!curr1) || curr1 -> val != key1)
                 return false; // key1 is not present in the vertex-list
         }
@@ -298,7 +315,7 @@ class GraphList {
             locateE( & u, & prede, & curre, key2, tid, logfile);
             
             if (curre -> val != key2) {
-                reportEdge(curre , u , tid , 1, logfile);// 
+                (*logfile) << "Edge not found  : " << key1 << " " << key2 << endl;
                 return 2; // edge not present
             }
             succe = curre -> enext.load();
@@ -337,14 +354,17 @@ class GraphList {
                         /*helping: delete one or more enodes which are marked*/
                                 
                         while ( curre != end_Enode &&
-                            (is_marked_ref((long) tv -> vnext.load()) || is_marked_ref((long) succe)) && curre -> val < key) {
+                            (is_marked_ref((long) tv -> vnext.load()) || is_marked_ref((long) succe)) && curre -> val <= key) {
                             reportEdge(curre , *source_of_edge , tid , 1, logfile);
                             //marking curr enode
-                            if (!atomic_compare_exchange_strong( & curre -> enext, & succe, (Enode * ) get_marked_ref((long) succe)))
+
+                            if (!is_marked_ref((long) succe) and !atomic_compare_exchange_strong( & curre -> enext, & succe, (Enode * ) get_marked_ref((long) succe)))
                                 goto retry;
+                            
                             //physical deletion of enode if already marked
                             //Note : remove goto retry if physical deletion fails
-                            atomic_compare_exchange_strong( & prede -> enext, & curre, succe);
+                            if(!atomic_compare_exchange_strong( & prede -> enext, & curre, (Enode * ) get_unmarked_ref((long) succe)))
+                                goto retry;
                                 
                             curre = (Enode * ) get_unmarked_ref((long) succe);
                             succe = curre -> enext.load();
@@ -484,13 +504,14 @@ void *thread_funct(void * t_args){
     //int prob_arr[4] = ((struct thread_args *)t_args)->prob_arr;
     bool *continue_exec = ((struct thread_args *)t_args)->continue_exec;
     
-    string logFileName = "../output/logfileParr" + to_string(thread_num) +".txt";
-    cout << logFileName << endl;
+    string logFileName = "../log/logfileParr" + to_string(thread_num) +".txt";
+    //cout << logFileName << endl;
     fstream logfile_th;
     logfile_th.open(logFileName,ios::out);
     while(*continue_exec){
         int op_index = rand() % 5;
-        op_index = 4;
+        
+        op_index = thread_num;
         //logfile_th << "op_index" << op_index << endl;
         switch(op_index) {
         case 0://add vertex
@@ -540,6 +561,26 @@ void *thread_funct(void * t_args){
                 //sc->print_snap_graph(&logfile_th);
             }
             break;
+        
+        case 5:
+            //snapshot
+            {
+                logfile_th << " thread id : " << thread_num << " Collecting snapshot"  << endl;
+                //print_graph(&logfile_th , graph->head);
+                SnapCollector * sc =  takeSnapshot(graph->head , thread_num, &logfile_th);
+                //sc->print_snap_graph(&logfile_th);
+            }
+            break;
+        
+        case 6:
+            //snapshot
+            {
+                logfile_th << " thread id : " << thread_num << " Collecting snapshot"  << endl;
+                //print_graph(&logfile_th , graph->head);
+                SnapCollector * sc =  takeSnapshot(graph->head , thread_num, &logfile_th);
+                //sc->print_snap_graph(&logfile_th);
+            }
+            break;
         }
     }
 
@@ -553,9 +594,9 @@ void *thread_funct(void * t_args){
 
 int main() {
     // abc
-    string logFileName = "../output/logfileParr.txt";
+    string logFileName = "../log/logfileParr.txt";
     //will be used in script
-    string numberOfThreadsStr = "2";
+    string numberOfThreadsStr = "7";
     int   num_of_threads = stoi(numberOfThreadsStr);
     bool debug = false;
 
@@ -591,8 +632,12 @@ int main() {
     //printf(graph->ContainsE(5,4,1) != 2? "False\n" : "True\n");
     struct thread_args t_args[num_of_threads];
     pthread_t threads[num_of_threads];
-    std::cout << "ASdas" << endl;
+    
     bool *continue_exec = new bool(true);
+    cout << "End snap Enode " << end_snap_Enode << endl;
+    cout << "Marked End snap Enode " << (Snap_Enode *)get_marked_ref((long) end_snap_Enode) << endl;
+    cout << "End snap Vnode " << end_snap_Vnode << endl;
+    cout << "Marked End snap Vnode " << (Snap_Vnode*) get_marked_ref((long)end_snap_Vnode) << endl;
     for( int i=0;i < num_of_threads ;i++){
 
         
@@ -605,7 +650,6 @@ int main() {
         t_args[i].thread_num = i;
         t_args[i].max_nodes = 10;
         t_args[i].max_threads = num_of_threads;
-        std::cout << "Thread num : " << t_args[i].thread_num << endl;
         pthread_create(&threads[i], NULL, thread_funct, &t_args[i]);
         
     }

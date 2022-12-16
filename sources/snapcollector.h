@@ -12,6 +12,7 @@ class SnapCollector;
 
 atomic<SnapCollector *> PSC = {nullptr};
 
+bool flag = false;
 // Vertex's Report Structure
 class VertexReport {
     public:
@@ -24,6 +25,9 @@ class VertexReport {
             this->action = action;
             this->nextReport = nextReport;
         };
+
+        VertexReport(){
+        }
 };
 
 // Edge's Report Structure
@@ -42,13 +46,15 @@ class EdgeReport {
 };
 
 bool vertex_comparator(const VertexReport &lhs, const VertexReport &rhs)
-{
-  if (lhs.vnode->val != rhs.vnode->val)
-    return lhs.vnode->val < rhs.vnode->val;
-  else if (lhs.vnode != rhs.vnode)
-    return true;
-  else
-    return lhs.action < rhs.action; // delete report will have higher pref
+{   
+
+    if (lhs.vnode->val != rhs.vnode->val)
+        return lhs.vnode->val < rhs.vnode->val;
+    else if (lhs.vnode != rhs.vnode)
+        return true;
+    else
+        return lhs.action < rhs.action; // delete report will have higher pref
+
 }
 
 bool edge_comparator(const EdgeReport &lhs, const EdgeReport &rhs)
@@ -124,7 +130,7 @@ class SnapCollector{
         atomic<bool> active = {false};//indicates if the snap collect field is currently active
         Snap_Vnode *head_snap_Vnode;//points to head of the collected vertex list
         atomic<Snap_Vnode *> tail_snap_V_ptr;//points to vertex last added too the collected vertex list
-        atomic<Snap_Enode *> tail_snap_E_ptr;//points to edge last added to the collected graph
+        atomic<Snap_Vnode *> tail_snap_E_V_ptr;//points to the vertex currently being iterated during edge iterations
 
         bool read_edge = false;// boolean value to indicate if that we are going through the edge
         Report **reports;//array of atomic report for each thread
@@ -135,8 +141,8 @@ class SnapCollector{
 
         //for reconstruction using report
     
-        atomic<vector<VertexReport> *>sorted_vertex_reports_ptr;
-        atomic<vector<EdgeReport> *>sorted_edge_reports_ptr;
+        vector<VertexReport> *sorted_vertex_reports_ptr = nullptr;
+        atomic<vector<EdgeReport> *>sorted_edge_reports_ptr = {nullptr};
         atomic<long> vertex_report_index = {0}; //used to store the highest index in sorted vertex reports currently being processed by any thread
         atomic<long> edge_report_index ;//at
 
@@ -147,7 +153,7 @@ class SnapCollector{
             Snap_Vnode * start_snap_Vnode = new Snap_Vnode(head, end_snap_Vnode );
             head_snap_Vnode = start_snap_Vnode;
             tail_snap_V_ptr = start_snap_Vnode;
-            tail_snap_E_ptr = nullptr;
+            tail_snap_E_V_ptr = nullptr;
             active = true;
 
             reports = new Report*[no_of_threads];
@@ -189,19 +195,24 @@ class SnapCollector{
                 }
                 if (next_Vnode == end_Vnode) //reaches the end of the vertex list in original graph
                 {
-                    (*logfile) << "temp_tail_snap_V_ptr->vnext is null " << (temp_tail_snap_V_ptr->vnext == nullptr) << endl; 
+                    
+                    (*logfile) << "temp_tail_snap_V_ptr->vnext " << (temp_tail_snap_V_ptr->vnext ) << endl; 
                     (*logfile) << "temp_tail_snap_V_ptr->vnext is marked " << is_marked_ref((long)temp_tail_snap_V_ptr->vnext.load()) << endl;
                     (*logfile) << "To End snap list : "  << endl;
-                    while (!atomic_compare_exchange_strong(&temp_tail_snap_V_ptr->vnext , &end_snap_Vnode ,(Snap_Vnode*)set_mark((long)end_snap_Vnode)))
+                    Snap_Vnode * tmp_end_snap_Vnode = end_snap_Vnode;//For CAS 
+                    (*logfile) << "End snap Vnode : " << end_snap_Vnode  << endl;
+                    while (!atomic_compare_exchange_strong(&temp_tail_snap_V_ptr->vnext , &tmp_end_snap_Vnode ,(Snap_Vnode*)set_mark((long)end_snap_Vnode)))
                     {   
-                        while(temp_tail_snap_V_ptr->vnext.load() == end_snap_Vnode) 
-                            (*logfile) << "Lol how is this even possible(1)" << endl;
+                        
                         Snap_Vnode * temp_snapv_ptr = temp_tail_snap_V_ptr->vnext.load();
+                        (*logfile) << "temp_tail_snap_V_ptr->vnext(Cas failed) " << (temp_tail_snap_V_ptr->vnext ) << endl; 
+
                         
                         //if the condition fails means some other thread added a new vnode
                         if(is_marked_ref((long)temp_snapv_ptr)){
                             break;//if some other node added a endnode
                         }
+                        tmp_end_snap_Vnode = end_snap_Vnode;
                         temp_tail_snap_V_ptr = temp_snapv_ptr;
                     }
                     (*logfile) << "Ended snap list : " << endl;
@@ -213,16 +224,16 @@ class SnapCollector{
                     //create a new snap vertex vertex Node
                     Snap_Vnode *snap_Vnode = new Snap_Vnode(next_Vnode,end_snap_Vnode);
                     (*logfile) << "To Add snap Vertex(1) : " << next_Vnode->val << "(" << next_Vnode << ")" << endl;
+                    Snap_Vnode * tmp_end_snap_Vnode = end_snap_Vnode;
                     //this would fail if some other node is added
-                    if(atomic_compare_exchange_strong(&temp_tail_snap_V_ptr->vnext , &end_snap_Vnode, snap_Vnode)){
+                    if(atomic_compare_exchange_strong(&temp_tail_snap_V_ptr->vnext , &tmp_end_snap_Vnode, snap_Vnode)){
                         (*logfile) << "Snap Added Vertex(1) : " << snap_Vnode->vnode->val << "(" << snap_Vnode->vnode << ")" << endl;
                         if(atomic_compare_exchange_strong(&tail_snap_V_ptr, &temp_tail_snap_V_ptr, snap_Vnode) )
                             (*logfile) << "Added Snap Vertex(1) : " << next_Vnode->val << "(" << next_Vnode << ")" << endl;
                     }
                     else 
                     {
-                        while(temp_tail_snap_V_ptr->vnext.load() == end_snap_Vnode) 
-                            (*logfile) << "Lol how is this even possible(2)" << endl;
+                        
                         Snap_Vnode *tmp_ptr = temp_tail_snap_V_ptr->vnext.load();
                         /// Note  : Can be optimized
                         if ((long)tmp_ptr == get_marked_ref((long)end_snap_Vnode))//no more vertex can be added
@@ -237,94 +248,101 @@ class SnapCollector{
                     }
                 }
             }
+            print_snap_graph(logfile);
             
-            Snap_Vnode * snap_edge_vertex_ptr = head_snap_Vnode->vnext;// used to identify current vertex we are iterating
-            Snap_Enode * temp_tail_snap_E_ptr = NULL;
+            Snap_Vnode * snap_edge_vertex_ptr = nullptr;// used to identify current vertex we are iterating
             //iterate through the edge
             while (read_edge){
                 
-                temp_tail_snap_E_ptr = tail_snap_E_ptr;
+                snap_edge_vertex_ptr = tail_snap_E_V_ptr; //The vertex whose edge list is currently being iterated
                 
-                //temp_tail_E can be prev vertex tail_E in which case its next is marked(end_E_node) 
-                //or some edge which belongs to current temp_snap_vertex_ptr or after that
+               
 
-                if (temp_tail_snap_E_ptr == nullptr){ //no edge has been added yet or tail_E has not been updated
-                    if(is_marked_ref((long)snap_edge_vertex_ptr))//This will be marked only in case if there are no vertice in snapshot
+                if (snap_edge_vertex_ptr == nullptr){ 
+                    
+                    if(is_marked_ref((long)head_snap_Vnode->vnext.load()))//This will be marked only in case if there are no vertice in snapshot
                     {   
                         break;
                     }
-
-                    Snap_Enode * start_snap_Enode = snap_edge_vertex_ptr->ehead ;//start of the edgelist
-                   
-                    ///////////////
-                    ///TEST : CAS on null ptr
-                    //////////////
-                    atomic_compare_exchange_strong(&tail_snap_E_ptr , &temp_tail_snap_E_ptr , start_snap_Enode);
+                    if(atomic_compare_exchange_strong(&tail_snap_E_V_ptr , &snap_edge_vertex_ptr , head_snap_Vnode->vnext.load()))
+                        (*logfile) << "Updated curretly iterating vertex  : " << head_snap_Vnode->vnext.load()->vnode->val << "(" << head_snap_Vnode->vnext.load() << ")" <<endl;
                 }
                 else
                 {
-                    (*logfile) << "temp_tail_snap_E_ptr->enode is null " << (temp_tail_snap_E_ptr->enode == nullptr) << endl;
-                    //Enode * next_enode = temp_tail_snap_E_ptr -> enode ->enext;
-                    Enode * next_Enode = (Enode *)get_unmarked_ref((long) temp_tail_snap_E_ptr->enode->enext.load());
+                    //if some node is iterating through a vertex's edge list
                     
+                    //goto the end of the snap edge list (end_snap_enode)
+                    //if end_snap_enode is marked then update the vertex 
+
+                    Snap_Enode *prev_snap_Enode = snap_edge_vertex_ptr->ehead;
+                    Snap_Enode *curr_snap_Enode = prev_snap_Enode->enext.load();
                     
-                    //fetch next edge which is not end_E_node and not marked or dest is not marked
-                    while ( next_Enode != end_Enode && (is_marked_ref((long)next_Enode) || is_marked_ref((long)next_Enode->v_dest->vnext.load()))){
-                        next_Enode = (Enode *)get_unmarked_ref((long)next_Enode ->enext.load());
+                    next_iter:
+                    while(get_unmarked_ref((long)curr_snap_Enode ) != (long)end_snap_Enode){
+                        prev_snap_Enode = curr_snap_Enode;
+                        curr_snap_Enode = prev_snap_Enode->enext.load();
                     }
                     
-                    bool to_help = true;
-                    if( next_Enode == end_Enode ){
-                        
-                        if(atomic_compare_exchange_strong(&temp_tail_snap_E_ptr->enext , &end_snap_Enode , (Snap_Enode*)set_mark((long)end_snap_Enode)) ) //either some thread has updated to marked(end_snap_enode) or added another edge
-                        {
-                            to_help = false;
-                            snap_edge_vertex_ptr = snap_edge_vertex_ptr->vnext;
-                            if(get_unmarked_ref((long)snap_edge_vertex_ptr ) == (long)end_snap_Vnode)
-                                break;
-                            atomic_compare_exchange_strong(&tail_snap_E_ptr , &temp_tail_snap_E_ptr , snap_edge_vertex_ptr->ehead);
-                        }
-                       
+                    if(is_marked_ref((long)curr_snap_Enode)){
+                        if(is_marked_ref((long)snap_edge_vertex_ptr->vnext.load()))
+                            break;
+                        if(atomic_compare_exchange_strong(&tail_snap_E_V_ptr , &snap_edge_vertex_ptr , snap_edge_vertex_ptr->vnext.load()))
+                            (*logfile) << "Updated curretly iterating vertex  : " << head_snap_Vnode->vnext.load()->vnode->val << "(" << head_snap_Vnode->vnext.load() << ")" <<endl;
                     }
-                    else 
-                    {//
+                    else{
                         
-                        Snap_Enode *snap_Enode = new Snap_Enode(next_Enode , end_snap_Enode);
-                        //add the  next node to snap
-                        if (atomic_compare_exchange_strong(&temp_tail_snap_E_ptr->enext , &end_snap_Enode ,snap_Enode ))
-                        {
-                            to_help = false;
-                            (*logfile) << "Added Snap Edge : " <<  next_Enode->val << "("<< next_Enode << ")" << endl;
-                            atomic_compare_exchange_strong(&tail_snap_E_ptr , &temp_tail_snap_E_ptr , snap_Enode);
+                        //Fetch the next node in the original graph for the prev snap node's enode
+                        Enode * next_Enode = (Enode *)get_unmarked_ref((long) prev_snap_Enode->enode->enext.load());
+                        //fetch next edge which is not end_E_node and not marked or dest is not marked
+                        while ( next_Enode != end_Enode && (is_marked_ref((long)next_Enode) || is_marked_ref((long)next_Enode->v_dest->vnext.load()))){
+                            next_Enode = (Enode *)get_unmarked_ref((long)next_Enode ->enext.load());
                         }
 
-                    }
-                    if(to_help)
-                    {
-                        Snap_Enode * next_snap_Enode = temp_tail_snap_E_ptr->enext.load();
-                        //either new node has been added or marked end node has been added by other thread
-                        //help other node
+                        //if next Enode is end_Enode then mark the next and if marked update the edge vertex ptr to next vertex 
+                        //check next vertex pointer is marked or not  if marked then break
+                        if(next_Enode == end_Enode){
+                            Snap_Enode * tmp_end_snap_Enode = end_snap_Enode;
+                            if(atomic_compare_exchange_strong(&prev_snap_Enode->enext , &tmp_end_snap_Enode , (Snap_Enode*)set_mark((long)end_snap_Enode)) ) //either some thread has updated to marked(end_snap_enode) or added another edge
+                            {
+                                if(is_marked_ref((long)snap_edge_vertex_ptr->vnext.load()))
+                                    break;
+                                if(atomic_compare_exchange_strong(&tail_snap_E_V_ptr , &snap_edge_vertex_ptr , snap_edge_vertex_ptr->vnext.load()))
+                                    (*logfile) << "Updated curretly iterating vertex  : " << snap_edge_vertex_ptr->vnext.load()->vnode->val << "(" << snap_edge_vertex_ptr->vnext.load()<< ")" <<endl;
+                            }
+                        }
+                        else{
+                            //if not end_Enode then 
+                            Snap_Enode * tmp_end_snap_Enode = end_snap_Enode;
+                            Snap_Enode *snap_Enode = new Snap_Enode(next_Enode , end_snap_Enode);
+
                         
-                        // if marked end node is added to the edge list
-                        if(is_marked_ref((long)next_snap_Enode)){
-                            (*logfile) << "Helped tail edge update to next vertex edge head" << endl;
-                            //fetch the next vertex
-                            snap_edge_vertex_ptr = snap_edge_vertex_ptr->vnext;
-                            if(get_unmarked_ref((long)snap_edge_vertex_ptr ) == (long)end_snap_Vnode)
-                                break;
-                            //update the next vertex ehead as curr tail edge
-                            atomic_compare_exchange_strong(&tail_snap_E_ptr , &temp_tail_snap_E_ptr , snap_edge_vertex_ptr->ehead);     
-                        }
-                        else
-                        {
-                            (*logfile) << "Helped tail edge update to next edge in edge list" << endl;
-                            atomic_compare_exchange_strong(&tail_snap_E_ptr , &temp_tail_snap_E_ptr  , next_snap_Enode);
-                        }
+                            if (atomic_compare_exchange_strong(&prev_snap_Enode->enext , &tmp_end_snap_Enode ,snap_Enode ))
+                            {
+                                (*logfile) << "Added Snap Edge : " <<  next_Enode->val << "("<< next_Enode << ")" << endl;
+                                prev_snap_Enode = snap_Enode;
+                                curr_snap_Enode = prev_snap_Enode->enext;
+                                goto next_iter;
+                            }
+                            else{
+                                //helping part
+                                if(is_marked_ref((long) prev_snap_Enode->enext.load())){
+                                    if(is_marked_ref((long)snap_edge_vertex_ptr->vnext.load()))
+                                        break;
+                                    if(atomic_compare_exchange_strong(&tail_snap_E_V_ptr , &snap_edge_vertex_ptr , snap_edge_vertex_ptr->vnext.load()))
+                                        (*logfile) << "Updated curretly iterating vertex  : " << snap_edge_vertex_ptr->vnext.load()->vnode->val << "(" << snap_edge_vertex_ptr->vnext.load()<< ")" <<endl;
+                                }
+                                else{
+                                    prev_snap_Enode = prev_snap_Enode->enext;
+                                    curr_snap_Enode = prev_snap_Enode->enext;
+                                    goto next_iter;
+                                }
+                            }
+                            
+                        }                       
                     }
-                    
                 }
             }
-            
+            print_snap_graph(logfile);
         }
        
         /**
@@ -349,7 +367,6 @@ class SnapCollector{
                 while((vrep_head == nullptr|| vrep_head->action!= 3 ) 
                             and !atomic_compare_exchange_strong(&reports[i]->head_vertex_report, &vrep_head, block_vreport))
                 {
-                    (*logfile) << "loop1" << endl;
                     (*logfile) << "vrep_head is null"<< (vrep_head == nullptr) << endl;
                     vrep_head = this->reports[i]->head_vertex_report;
                     block_vreport->nextReport = vrep_head;
@@ -364,7 +381,6 @@ class SnapCollector{
                 while((erep_head== nullptr || erep_head->action!= 3 )
                             and !atomic_compare_exchange_strong(&reports[i]->head_edge_report, &erep_head, block_ereport))
                 {
-                    (*logfile) << "loop2" << endl;
                     erep_head = this->reports[i]->head_edge_report;
                     block_ereport->nextReport = erep_head;
                 }
@@ -374,40 +390,53 @@ class SnapCollector{
 
         void reconstructUsingReports(fstream * logfile){
             Snap_Vnode *next_V = head_snap_Vnode;
-            vector<VertexReport> vertex_reports ;
-            if (sorted_vertex_reports_ptr == nullptr){
+            vector<VertexReport> vreports1  ;
                 
-                for (int i = 0; i < no_of_threads; i++)
+            for (int i = 0; i < no_of_threads; i++)
+            {
+                (*logfile) << "Vertex report Thread no " << i << endl; 
+                VertexReport *curr_head= reports[i]->head_vertex_report;
+                curr_head = curr_head->nextReport; // ignore the dummy report
+                while(curr_head)
                 {
-                    (*logfile) << "Vertex report Thread no " << i << endl; 
-                    VertexReport *curr_head= reports[i]->head_vertex_report;
-                    curr_head = curr_head->nextReport; // ignore the dummy report
-                    while(curr_head)
-                    {
-                        (*logfile) << "curr_head vnode is null" << (curr_head->vnode == nullptr) << endl;
-                        (*logfile)<< "Vertex add report " << curr_head->vnode->val <<"("<< curr_head->vnode<<") " << " action " << curr_head->action << endl; 
-                        vertex_reports.push_back(*curr_head);
-                        curr_head = curr_head->nextReport;
-                        
-                    }
+                    (*logfile) << "curr_head vnode is null" << (curr_head->vnode == nullptr) << endl;
+                    (*logfile)<< "Vertex add report " << curr_head->vnode->val <<"("<< curr_head->vnode<<") " << " action " << curr_head->action << endl; 
+                    vreports1.push_back(*curr_head);
+                    curr_head = curr_head->nextReport;
+                    
                 }
-                sort(vertex_reports.begin(), vertex_reports.end(), &vertex_comparator);
-                sorted_vertex_reports_ptr = &vertex_reports;
-
             }
-            else
-                vertex_reports = *sorted_vertex_reports_ptr.load();
+
+            //for(int i  = 0 ;i < vreports1.size();i++){
+            //    VertexReport vreport = vreports1[i];
+            //    (*logfile) << "VERTEX REPORT VNODE VALUE(before sorting) i = "<< i <<" " << vreport.vnode << " "  << vreport.vnode->val<< endl;
+            //}
+            vector<VertexReport> vreports(vreports1.size());
+            partial_sort_copy(vreports1.begin(), vreports1.end(),vreports.begin(), vreports.end() ,&vertex_comparator);
+            //if (flag){
+                for(int i  = 0 ;i < vreports.size();i++){
+                    VertexReport vreport = vreports[i];
+                    (*logfile) << "VERTEX REPORT VNODE VALUE(after sorting) i = "<< i <<" " << vreport.vnode << " "  << vreport.vnode->val<< endl;
+                }
+            //    exit(0);
+            //}
             
+            //vector<VertexReport>* vertex_reports = &vreports;
+            
+           
             
             Snap_Vnode *prev_snap_Vnode = head_snap_Vnode; 
             Snap_Vnode *next_snap_Vnode = prev_snap_Vnode->vnext;
-
-            while (vertex_report_index < vertex_reports.size()){
+            
+            long vreport_size = vreports.size(); 
+            while (true){
                 long index = vertex_report_index;
+                if(index >= vreport_size)
+                    break;
                 long prev_index = index;
 
-                VertexReport report = vertex_reports[index];
-                (*logfile) << "Vertex report : " << report.vnode->val<<"("<< report.vnode<<") " << " action " << report.action << endl;
+                VertexReport report = vreports.at(index);
+                (*logfile) << "Vertex report: " << report.vnode->val << endl;
                 while ( (long)next_snap_Vnode != get_marked_ref((long)end_snap_Vnode) and next_snap_Vnode->vnode->val < report.vnode->val){
                     prev_snap_Vnode = next_snap_Vnode;
                     next_snap_Vnode = next_snap_Vnode->vnext;
@@ -435,8 +464,9 @@ class SnapCollector{
                     //vertex deletion
 
                     if (next_snap_Vnode->vnode == report.vnode) {
-                        atomic_compare_exchange_strong(&prev_snap_Vnode->vnext , &next_snap_Vnode , next_snap_Vnode->vnext );
-                        (*logfile) << "Vertex deleted : " <<  next_snap_Vnode->vnode->val <<"(" <<  next_snap_Vnode->vnode << ")  " << report.action << endl;
+                        Snap_Vnode * tmp_snap_Vnode = next_snap_Vnode;
+                        if(atomic_compare_exchange_strong(&prev_snap_Vnode->vnext , &tmp_snap_Vnode , next_snap_Vnode->vnext ))
+                            (*logfile) << "Vertex deleted : " <<  next_snap_Vnode->vnode->val <<"(" <<  next_snap_Vnode->vnode << ")  " << report.action << endl;
                         next_snap_Vnode = next_snap_Vnode ->vnext;
                     }
                     else{
@@ -445,7 +475,7 @@ class SnapCollector{
       
                     
                     index++;
-                    while(report.vnode == vertex_reports[index].vnode){
+                    while(index < vreport_size and report.vnode == vreports.at(index).vnode){
                         index++;
                     }
                     
@@ -457,9 +487,9 @@ class SnapCollector{
             
 
             /// @brief processing edge reports
-            vector<EdgeReport> edge_reports;
+            vector<EdgeReport> *edge_reports;
             if (sorted_edge_reports_ptr == nullptr){
-                
+                edge_reports = new vector<EdgeReport>();
                 for (int i = 0; i < no_of_threads; i++)
                 {
                     EdgeReport *curr_head= reports[i]->head_edge_report;
@@ -467,19 +497,19 @@ class SnapCollector{
                     while(curr_head)
                     {
                         
-                        edge_reports.push_back(*curr_head);
+                        edge_reports->push_back(*curr_head);
                         curr_head = curr_head->nextReport;
                     }
                 }
                  
-                sort(edge_reports.begin(), edge_reports.end(), &edge_comparator);
-                sorted_edge_reports_ptr = &edge_reports;
+                sort(edge_reports->begin(), edge_reports->end(), &edge_comparator);
+                sorted_edge_reports_ptr = edge_reports;
                 
             }
             else
-                edge_reports = *sorted_edge_reports_ptr.load();
-
+                edge_reports = sorted_edge_reports_ptr.load();
             
+          
             
             
        
@@ -499,31 +529,39 @@ class SnapCollector{
             Snap_Enode *prev_snap_edge = nullptr;
             Snap_Enode *curr_snap_edge = nullptr;
             Snap_Vnode *dest_vsnap_ptr  = nullptr;//verify the destination vertex of all edges of the source
-            while (edge_report_index < edge_reports.size()){
+            long ereport_size = edge_reports->size();
+            while (true){
                 
                 long index = edge_report_index;
+                if(index >= ereport_size)
+                    break;
                 long prev_index = index;
                 
                 //check if edge reports is empty
-                EdgeReport report = edge_reports[index]    ;
+                EdgeReport report = edge_reports->at(index);
                 curr_source = report.source;
                 (*logfile) << "Edge report: " << report.source->val<<"(" << report.source << ") " << report.enode->val <<"(" << report.enode->v_dest << ") "<<" "<< report.action<< endl;
                 //fetch the next vertex pointer
                 while ((long)loc_snap_vertex_ptr != get_marked_ref((long)end_snap_Vnode)  && (loc_snap_vertex_ptr->vnode->val < curr_source->val )){
                      //remove edge from edge list of loc_snap_vertex_ptr with TO vertex present in DELETE reports
-                    
+                    (*logfile) << "checking vertex : " << loc_snap_vertex_ptr->vnode->val  << "(" <<loc_snap_vertex_ptr->vnode << ")" <<endl;
                     dest_vsnap_ptr  = head_snap_Vnode->vnext;
                     prev_snap_edge = loc_snap_vertex_ptr->ehead;
                     curr_snap_edge = loc_snap_vertex_ptr->ehead->enext;
                     while ((long)curr_snap_edge != get_marked_ref((long)end_snap_Enode)){
-                        
+                        (*logfile) << "check if edge dest vertex is present " << curr_snap_edge->enode->val << "(" <<curr_snap_edge<< ")" <<endl;
                         //check if dest vertex is present for curr snap edge(not the report related edge)
-                        while((long)dest_vsnap_ptr != get_marked_ref((long)end_snap_Vnode) and dest_vsnap_ptr->vnode->val < curr_snap_edge->enode->val)
+                        (*logfile) << "dest_vsap_ptr " << dest_vsnap_ptr << endl;
+                        while((long)dest_vsnap_ptr != get_marked_ref((long)end_snap_Vnode) 
+                                    and dest_vsnap_ptr->vnode->val < curr_snap_edge->enode->val){
                             dest_vsnap_ptr = dest_vsnap_ptr->vnext;
+                            (*logfile) << "dest_vsap_ptr " << dest_vsnap_ptr << endl;
+                        }
                         if ((long)dest_vsnap_ptr != get_marked_ref((long)end_snap_Vnode) && dest_vsnap_ptr->vnode != curr_snap_edge->enode->v_dest){
                             //delete the edge
-                            atomic_compare_exchange_strong(&prev_snap_edge->enext , &curr_snap_edge , curr_snap_edge->enext);
-                            (*logfile) << "Edge Deleted: " << loc_snap_vertex_ptr->vnode->val<<"(" << loc_snap_vertex_ptr->vnode << ") " << curr_snap_edge->enode->val <<"(" << curr_snap_edge->enode->v_dest << ") " <<" "<< endl;
+                            Snap_Enode * tmp_snap_edge =  curr_snap_edge;
+                            if(atomic_compare_exchange_strong(&prev_snap_edge->enext , &tmp_snap_edge , curr_snap_edge->enext))
+                                (*logfile) << "Edge Deleted: " << loc_snap_vertex_ptr->vnode->val<<"(" << loc_snap_vertex_ptr->vnode << ") " << curr_snap_edge->enode->val <<"(" << curr_snap_edge->enode->v_dest << ") " <<" "<< endl;
                             curr_snap_edge = curr_snap_edge->enext;
                         }
                         else {
@@ -541,7 +579,7 @@ class SnapCollector{
                     (*logfile) <<"For edge : " <<report.source->val<<"(" << report.source << ") " << report.enode->val <<"(" << report.enode->v_dest << ")  "<< " source"<<curr_source->val << "("<<curr_source <<")  not found" << endl;
                     index++; 
                     //skip all the reports belonging to same source
-                    while (edge_reports[index].source == curr_source) //ignore all report belonging to same dest and source
+                    while (index < ereport_size and edge_reports->at(index).source == curr_source) //ignore all report belonging to same dest and source
                         index++;
                     atomic_compare_exchange_strong(&edge_report_index, &prev_index,index);//update edge index
                     continue ;
@@ -549,31 +587,44 @@ class SnapCollector{
                 //Found the correct source
                
                 if(prev_source != curr_source){ 
+                    (*logfile) << "prev source " << "(" <<prev_source << ") is not same as current source " << curr_source->val << "("<<curr_source << ")"<< endl;
                     prev_snap_edge = loc_snap_vertex_ptr->ehead;
                     curr_snap_edge = prev_snap_edge->enext;
                     dest_vsnap_ptr  = head_snap_Vnode->vnext;//verify the destination vertex of all edges of the source
+                
                 }
-
-                while( (long)curr_snap_edge != get_marked_ref((long)end_snap_Enode) and curr_snap_edge->enode->val < report.enode->val){
+                (*logfile) << 583 << " loc_snap_vertex_ptr " <<loc_snap_vertex_ptr->vnode->val << "(" << loc_snap_vertex_ptr<<")"<< endl;
+                (*logfile) << 583 << " curr_snap_edge " <<curr_snap_edge<< endl;
+                (*logfile) << 583 << " curr_snap_edge vnode is null " <<curr_snap_edge->enode<< endl;
+                (*logfile) << 583 << " curr_snap_edge enext is null " <<curr_snap_edge->enext<< endl;
+                while( (long)curr_snap_edge != get_marked_ref((long)end_snap_Enode) 
+                                and curr_snap_edge->enode->val < report.enode->val){
                     //check if edge dest vertex is present if not remove
                     while ((long)dest_vsnap_ptr != get_marked_ref((long)end_snap_Vnode) and dest_vsnap_ptr->vnode->val < curr_snap_edge->enode->val)
                         dest_vsnap_ptr = dest_vsnap_ptr->vnext;
                     if (dest_vsnap_ptr->vnode != curr_snap_edge->enode->v_dest){
                         //delete the edge
-                        atomic_compare_exchange_strong(&prev_snap_edge->enext , &curr_snap_edge , curr_snap_edge->enext);
-                        (*logfile) << "Edge Deleted: " << curr_source->val<<"(" << curr_source << ") " << curr_snap_edge->enode->val <<"(" << curr_snap_edge->enode->v_dest << ") " <<" "<< endl;
+                        Snap_Enode * temp_snap_Enode = curr_snap_edge;
+                        if(atomic_compare_exchange_strong(&prev_snap_edge->enext , &temp_snap_Enode , curr_snap_edge->enext))
+                            (*logfile) << "Edge Deleted: " << curr_source->val<<"(" << curr_source << ") " << curr_snap_edge->enode->val <<"(" << curr_snap_edge->enode->v_dest << ") " <<" "<< endl;
                         curr_snap_edge = curr_snap_edge->enext;
                     }
                     else{
                         prev_snap_edge = curr_snap_edge;
                         curr_snap_edge = curr_snap_edge->enext;
                     }
+                    (*logfile) << 583 << " curr_snap_edge " <<curr_snap_edge<< endl;
+                    (*logfile) << 583 << " curr_snap_edge vnode is null " <<curr_snap_edge->enode<< endl;
+                    (*logfile) << 583 << " curr_snap_edge enext is null " <<curr_snap_edge->enext<< endl;
                 }
                 if(report.action == 2){//report action
                     if(curr_snap_edge->enode != report.enode){
-                            
-                        while ((long)dest_vsnap_ptr != get_marked_ref((long)end_snap_Vnode) and dest_vsnap_ptr->vnode->val < report.enode->v_dest->val)
+                        
+                        while ((long)dest_vsnap_ptr != get_marked_ref((long)end_snap_Vnode) 
+                                and dest_vsnap_ptr->vnode->val < report.enode->v_dest->val){
+                            (*logfile) << "dest_vsnap_ptr val : " << dest_vsnap_ptr->vnode->val << endl;   
                             dest_vsnap_ptr = dest_vsnap_ptr->vnext;
+                        }
                         if ((long)dest_vsnap_ptr != get_marked_ref((long)end_snap_Vnode) and dest_vsnap_ptr->vnode == report.enode->v_dest){ //no delete report TO edge address and value
                                            
 
@@ -605,18 +656,19 @@ class SnapCollector{
                     }
                     Enode * curr_edge = report.enode;
                     index++;
-                    while( edge_reports[index].enode == report.enode  )//ignore all report belonging to edge
+                    while( index < ereport_size and edge_reports->at(index).enode == report.enode  )//ignore all report belonging to edge
                         index++;
                 }
-                if (edge_reports[index].source != curr_source){ //next report is of different source
+                if (index < ereport_size and edge_reports->at(index).source != curr_source){ //next report is of different source
                     //verify the remaining edges of current source
                     while ((long)curr_snap_edge != get_marked_ref((long)end_snap_Enode)){
                         while ((long)dest_vsnap_ptr != get_marked_ref((long)end_snap_Vnode) and dest_vsnap_ptr->vnode->val < curr_snap_edge->enode->val)
                             dest_vsnap_ptr = dest_vsnap_ptr->vnext;
                         if ((long)dest_vsnap_ptr != get_marked_ref((long)end_snap_Vnode) and dest_vsnap_ptr->vnode != curr_snap_edge->enode->v_dest){
                             //delete the edge
-                            atomic_compare_exchange_strong(&prev_snap_edge->enext , &curr_snap_edge , curr_snap_edge->enext);
-                            (*logfile) << "Edge Deleted: " << curr_source->val<<"(" << curr_source << ") " << curr_snap_edge->enode->val <<"(" << curr_snap_edge->enode->v_dest << ") " <<" "<< report.action<< endl;
+                            Snap_Enode * tmp_snap_Edge = curr_snap_edge;
+                            if(atomic_compare_exchange_strong(&prev_snap_edge->enext , &tmp_snap_Edge , curr_snap_edge->enext))
+                                (*logfile) << "Edge Deleted: " << curr_source->val<<"(" << curr_source << ") " << curr_snap_edge->enode->val <<"(" << curr_snap_edge->enode->v_dest << ") " <<" "<< report.action<< endl;
 
                             curr_snap_edge = curr_snap_edge->enext;
                         }
@@ -635,7 +687,7 @@ class SnapCollector{
         void print_snap_graph(fstream *logfile){
             (*logfile) << "Snapped Graph ----------" << endl;
             Snap_Vnode * snap_vnode = head_snap_Vnode->vnext;
-            while(snap_vnode != (Snap_Vnode *)set_mark((long)end_snap_Vnode)){
+            while(get_unmarked_ref((long)snap_vnode) != (long)end_snap_Vnode){
                 string val = to_string(snap_vnode->vnode->val);
                 
                 (*logfile) << val << "(" << snap_vnode->vnode << ") " <<endl ;
@@ -651,6 +703,7 @@ class SnapCollector{
                     snap_enode = snap_enode -> enext;
                     
                 }
+                (*logfile) <<" Tailp-e " <<snap_enode << endl;
                 
                 (*logfile) << endl;
                 (*logfile) << "|" <<endl;
@@ -755,7 +808,7 @@ void reportVertex(Vnode *victim,int tid, int action, fstream * logfile){
  */
 void reportEdge(Enode *victim,Vnode *source_enode, int tid, int action, fstream *logfile){
     SnapCollector * SC = PSC;
-    (*logfile) << "Report edge " << source_enode->val << victim->val << " action : " << action<<endl;
+    (*logfile) << "Report edge " << source_enode->val<<" " << victim->val << " action : " << action<<endl;
     if(SC != nullptr and SC->isActive()) {
         if(action == 2 && is_marked_ref((long) victim->enext.load()))
             return;
