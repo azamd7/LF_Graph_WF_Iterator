@@ -1,7 +1,9 @@
 .vscode/**/*
 
 log/**/*
+!log/.gitkeep
 
 **/*.out
 
 output/**/*
+!output/.gitkeep
