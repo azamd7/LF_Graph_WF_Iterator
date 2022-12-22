@@ -1,0 +1,312 @@
+ /*
+ * File:main-10-90.cpp
+ *  
+ *
+ * Author(s):
+ *   Bapi Chatterjee <bapchatt@in.ibm.com>
+ *   Sathya Peri <sathya_p@iith.ac.in>
+ *   Muktikanta Sa   <cs15resch11012@iith.ac.in>
+ *   Nandini Singhal <cs15mtech01004@iith.ac.in>
+ *   
+ * Description:
+ *    implementation of a Coarse Graph GetPath
+ * Copyright (c) 2018.
+ * last Updated: 31/07/2018
+ *
+*/
+#include"lfGraph_getPath.cpp"
+
+ //ofstream couttt("graphinput.txt");
+  typedef struct 
+{
+    int     secs;
+    int     usecs;
+}TIME_DIFF;
+
+TIME_DIFF * my_difftime (struct timeval * start, struct timeval * end)
+{
+	TIME_DIFF * diff = (TIME_DIFF *) malloc ( sizeof (TIME_DIFF) );
+ 
+	if (start->tv_sec == end->tv_sec) 
+	{
+        	diff->secs = 0;
+        	diff->usecs = end->tv_usec - start->tv_usec;
+    	}
+   	else 
+	{
+        	diff->usecs = 1000000 - start->tv_usec;
+        	diff->secs = end->tv_sec - (start->tv_sec + 1);
+        	diff->usecs += end->tv_usec;
+        	if (diff->usecs >= 1000000) 
+		{
+        	    diff->usecs -= 1000000;
+	            diff->secs += 1;
+	        }
+	}
+        return diff;
+}
+
+
+atomic<long> vertexID;
+double seconds;
+struct timeval tv1, tv2;
+TIME_DIFF * difference;
+int NTHREADS;
+
+
+typedef struct infothread{
+  long tid;
+  slist G;
+  int threadnum;
+  int * ops;
+  vector<double> * dist_prob;
+  bool *cont_exec;
+}tinfo;
+
+
+
+void* pthread_call(void* t)
+{
+        tinfo *ti=(tinfo*)t;
+        long Tid = ti->tid;
+        slist G1=ti->G;
+        int threadnum = ti->threadnum;
+        bool * cont_exec = ti->cont_exec;
+        
+        int * ops = ti->ops;
+        vector<double> * dist_prob = ti->dist_prob;
+        
+	int u, v;;
+    random_device rd;
+    mt19937 gen(rd());
+    discrete_distribution<> d(dist_prob->begin() , dist_prob->end());
+	while(*cont_exec)
+	{
+		gettimeofday(&tv2,NULL);
+		difference = my_difftime (&tv1, &tv2);
+
+		if(difference->secs >= seconds)
+			break;
+        
+     
+        int op= d(gen);
+		//int op = rand()%7;	
+        switch(op){
+            case 0:
+            {
+                    vertexID++;
+                l:	v = rand() % (vertexID);		
+                if(v == 0)
+                    goto l;
+                G1.AddV(v,NTHREADS);
+                break;
+            }
+                case 1:
+            {
+                l2:	v = rand() % (vertexID)+1;		
+                if(v == 0)
+                    goto l2;
+                G1.RemoveV(v);
+                    break;			
+            }
+
+                
+            case 2:
+            {
+            l4:		u = (rand() % (vertexID))+1;	
+                    v = (rand() % (vertexID))+1;
+                    if(u == v || u == 0 || v == 0)	
+                        goto l4;
+                    G1.AddE(u,v); 
+                    break;			
+            }
+               
+            case 3:
+            {
+            l3:		u = (rand() % (vertexID))+1;		
+                    v = (rand() % (vertexID))+1;
+                    if(u == v || u == 0 || v == 0)	
+                        goto l3;
+                    G1.RemoveE(u,v); 
+                    break;	
+            }
+            
+           case 4:
+            {
+            l5:		u = (rand() % (vertexID))+1;		
+                    v = (rand() % (vertexID))+1;
+                    if(u == v || u == 0 || v == 0)		
+                        goto l5;
+                    G1.ContainsE(u,v); 
+                    break;			
+            }
+            case 5:
+            {
+            
+                l6:	v = rand() % (vertexID);	
+                    if(v == 0)
+                        goto l6;
+                    G1.ContainsV(v);
+                        break;
+            }
+            case 6:
+            {
+
+                snap_vlist * vhead1 = G1.snapshot();
+                snap_vlist * vhead2 = nullptr;
+                while(*cont_exec){
+                    vhead2 = G1.snapshot();
+                    if(G1.compare_snapshot(vhead1 , vhead2)){
+                        break;
+                    }
+                    vhead1 = vhead2;
+                    //cout << "cont exec"<< *cont_exec << endl;
+                }
+                if(*cont_exec)
+                    ops[threadnum]++;
+                break;
+            }
+        }
+        
+	}
+    return nullptr; 		
+}
+
+int main(int argc, char*argv[])	
+{
+	slist sg;
+	vertexID.store(1);
+	int i;
+    int num_of_threads = 13;
+    int test_duration = 10;
+    int initial_vertices = (int)pow(10 , 3);
+    int initial_edges = 2 * (int)pow(10, 3);
+    vector<double> dist_prob = {1,1,1,1,1,1,1};
+
+
+	if(argc > 1){
+        num_of_threads = stoi(argv[2]) ;
+        test_duration = stoi(argv[3]);
+        initial_vertices = stoi(argv[4]);
+        initial_edges = stoi(argv[5]);
+        if(argc > 7){
+            //read dist probabilities
+            for(int i = 0;i< 7 ; i++){
+                dist_prob[i] = stoi(argv[6+i]);
+            }
+            
+        }
+    }
+	NTHREADS = num_of_threads;
+	seconds = test_duration;		
+	vertexID.store(initial_vertices + 1);	
+        sg.init();
+	sg.initGraph(initial_vertices, initial_edges, NTHREADS);
+    //cout << "graph created" << endl;
+
+        pthread_t *thr = new pthread_t[NTHREADS];
+	pthread_attr_t attr;
+   	pthread_attr_init (&attr);
+   	pthread_attr_setdetachstate (&attr, PTHREAD_CREATE_JOINABLE);
+   	int dig,temp; 
+	double duration = 0.0;
+        gettimeofday(&tv1,NULL);
+    int *ops = new int(NTHREADS);
+    bool *cont_exec = new bool(true);
+	//cout << "timer started . . ." << endl;
+	for (i=0;i < NTHREADS;i++)
+       	{
+       	      tinfo *t =(tinfo*) malloc(sizeof(tinfo));
+		t->tid = i;
+		t->G = sg;
+        t->threadnum = i;
+        t->ops = ops;
+        t->dist_prob = &dist_prob;
+        t->cont_exec = cont_exec;
+       		pthread_create(&thr[i], &attr, pthread_call, (void*)t);
+        }
+    sleep(seconds);
+    *cont_exec = false;
+    //cout << "cont is false"  <<endl;
+
+	for (i = 0; i < NTHREADS; i++)
+      	{
+		pthread_join(thr[i], NULL);
+	}
+	int max_cnt = 0;
+    long tot_cnt = 0;
+    long avg_cnt = 0;
+
+    for( int i = 0;i < NTHREADS ; i++){
+        //check max
+        if(max_cnt < ops[i]){
+            max_cnt = ops[i];
+        }
+        tot_cnt += ops[i];
+    }
+    //if(avg_cnt != 0.0f)
+    avg_cnt = tot_cnt*1.0 / num_of_threads;
+
+    cout << avg_cnt << fixed << endl;
+    cout << max_cnt << fixed << endl;
+
+	return 0;
+}           
+
+void print_graph(slist sg, fstream *logfile){
+    (*logfile) << "Graph ----------" << endl;
+    vlist_t *vnode = sg.Head->vnext;
+    while(vnode->val != INT_MAX){
+        string val = to_string(vnode->val);
+        bool is_marked = is_marked_ref((long)vnode->vnext.load());
+        if(is_marked){
+            val = "!" + val;
+        }
+        (*logfile) << val ;
+
+        elist_t *enode = vnode->enext.load()->enext;
+        while(enode->val != INT_MAX){
+            string e_val = to_string(enode->val);
+            bool e_is_marked = is_marked_ref((long)enode->enext.load());
+            if (e_is_marked){
+                e_val = "!" + e_val;
+            }
+            e_val = " -> " + e_val ;
+            (*logfile) << e_val ;
+            enode = enode -> enext;
+            
+        }
+        (*logfile) << endl;
+        (*logfile) << "|" <<endl;
+        vnode = vnode->vnext;
+
+    }
+    (*logfile) << "Tail" << endl;
+    (*logfile) << "Graph(End)-------" << endl;
+}
+
+void print_snap_graph(snap_vlist *vhead ,fstream * logfile ){
+    (*logfile) << "Snap Graph ----------" << endl;
+    snap_vlist * vsnap = vhead->vnext;
+
+    while(vsnap != nullptr ){
+        string val = to_string(vsnap->pointv->val);
+        (*logfile) << val ;
+        
+        snap_elist *enode = vsnap->enext->enext;
+        
+        while(enode != nullptr ){
+            string e_val = to_string(enode->pointe->val);
+            e_val = " -> " + e_val ;
+            (*logfile) << e_val ;
+            enode = enode->enext;
+        }
+        (*logfile) << endl;
+        (*logfile) << "|" <<endl;
+        vsnap = vsnap->vnext;
+        
+    }
+    
+    (*logfile) << "Tail" << endl;
+    (*logfile) << "Snap Graph(End)-------" << endl;
+}
