@@ -96,13 +96,14 @@ with open(script_log_file, 'w+') as log_f_object:
                         max_lst = [thread_cnt]
                         avg_lst = [thread_cnt]
                         print("Thread cnt : " + str(thread_cnt),file = log_f_object,flush = True)
-                        cmd = cmd2
-                        for prob in dist_prob:
-                            cmd += " " + str(prob)
                         
-                        if debug:
-                            cmd += " debug"
                         for algo in algos:
+                            cmd = cmd2
+                            for prob in dist_prob:
+                                cmd += " " + str(prob)
+                            
+                            if debug:
+                                cmd += " debug"
                             print("Algo : "+ algo,file = log_f_object,flush = True)
                             cmd = cmd.format(algo,date_time_obj,str(thread_cnt),test_duration,init_vertices,init_edges)
                             avg_time_taken_list = []
