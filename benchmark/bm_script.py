@@ -9,121 +9,152 @@ import random
 
 now = datetime.now() # current date and time
 
-date_time_obj =now.strftime('%Y_%m_%d_%H_%M_%S') 
+date_time_obj =now.strftime('%H_%M_%S') 
 
 
-threads = [13,26,52,78,104] 
+threads = [13,26,52,78,102] 
 #threads = [4,8]
 algos = ["icdcn" , "report_tp" ]
 debug = False
 main_file = "main.cpp"
-maxt_output_file = '../output/algo_op_' + date_time_obj +"_maxt" +  '.csv'
-avgt_output_file = '../output/algo_op_' + date_time_obj +"_avgt" + '.csv'
-iterations = 6
+iterations = 7
 test_duration = "10" #no of sec before stop executions
 init_vertices = str(10**4)
 init_edges = str(2 * (10**4))
-dist_prob = [1,1,1,1,1,1,1]
+
+#files
+maxt_output_file_fmt = '../output/{0}_op_' + date_time_obj +"_maxt_{1}" +  '.csv'
+avgt_output_file_fmt = '../output/{0}_op_' + date_time_obj +"_avgt_{1}" + '.csv'
+script_log_file = "../script_log/" + date_time_obj + ".txt"
+
+#commands
+cmd1 = "g++ -std=c++11 -pthread -O3 -o ../sources/{0}/a.out ../sources/{0}/" + main_file
+cmd2 = "../sources/{0}/a.out ../log/{1} {2} {3} {4} {5}"
 
 
+# * 0->add vertex
+# * 1->delete vertex
+# * 2->add edge           
+# * 3->delete edge
+# * 4->contains edge
+# * 5->contains vertex
+# * 6->snapshot
 
-with open( maxt_output_file, 'w+') as f_object:
-    lst = ["Threads" ]
-    for algo in algos:
-        lst.append(algo)
-    
-    writer_object = writer(f_object)
+dist_probs ={ 
+            "loopup_int" : [3,2,3,2,45,45,0],
+            "update_int" : [13,12,13,12,25,25,0]
+            }
 
-    writer_object.writerow(lst)
-
-with open( avgt_output_file, 'w+') as f_object:
-    lst = ["Threads"  ]
-    for algo in algos:
-        lst.append(algo)
-    writer_object = writer(f_object)
-
-    writer_object.writerow(lst)
-   
-   
-
-script_log_file = "../script_log/log_" + date_time_obj + ".txt"
 with open(script_log_file, 'w+') as log_f_object:
-    with open(maxt_output_file, 'a+') as f_object_max:
-        with open(avgt_output_file, 'a+') as f_object_avg:
-            writer_object_max = writer(f_object_max)
-            writer_object_avg = writer(f_object_avg)
+    for key in dist_probs: 
+        print("\n\n\n\n\n\nProbablity Dist: "+ key +" " + str( dist_probs[key])  ,file = log_f_object,flush = True)
+        dist_prob = dist_probs[key].copy()
+        for i in range(0,11,2):
+            print("\n\nSnapshot Dist: "+str(i)  ,file = log_f_object,flush = True)
+            if(i != 0):
+                dist_prob[6] = i
+                dist_prob[4] -= i//2
+                dist_prob[5] -= i//2
+            
+            maxt_output_file = maxt_output_file_fmt.format(key , "ss_" + str(i))
+            avgt_output_file = avgt_output_file_fmt.format(key , "ss_" + str(i))
+            with open( maxt_output_file, 'w+') as f_object:
+                lst = ["Threads" ]
+                for algo in algos:
+                    lst.append(algo)
+                
+                writer_object = writer(f_object)
+
+                writer_object.writerow(lst)
+
+            with open( avgt_output_file, 'w+') as f_object:
+                lst = ["Threads"  ]
+                for algo in algos:
+                    lst.append(algo)
+                writer_object = writer(f_object)
+
+                writer_object.writerow(lst)
+            
+            
 
             
-            cmd1 = "g++ -std=c++11 -pthread -O3 -o ../sources/{0}/a.out ../sources/{0}/" + main_file
-            for algo in algos:
-                c = cmd1.format(algo)
-                proc = sp.Popen(c.split())
-                proc.wait()
+            
+            with open(maxt_output_file, 'a+') as f_object_max:
+                with open(avgt_output_file, 'a+') as f_object_avg:
+                    writer_object_max = writer(f_object_max)
+                    writer_object_avg = writer(f_object_avg)
 
-            number_of_triangles_parr = 0
-            for thread_cnt in threads :
-                max_lst = [thread_cnt]
-                avg_lst = [thread_cnt]
-                print("Thread cnt : " + str(thread_cnt),file = log_f_object,flush = True)
-                cmd2 = "../sources/{0}/a.out " + "../log/log_" + date_time_obj + " " + str(thread_cnt) +" " + test_duration + " " + init_vertices + " " + init_edges 
-                for prob in dist_prob:
-                    cmd2 += " " + str(prob)
-                
-                if debug:
-                    cmd2 += " debug"
-                for algo in algos:
-                    print("Algo : "+ algo,file = log_f_object,flush = True)
-                    c2 = cmd2.format(algo)
-                    avg_time_taken_list = []
-                    max_time_taken_list = []
-
-                    #update parallel iterations
-                    for i in range(iterations):
-                        print("Iteration : "+ str(i),file = log_f_object,flush = True)
-                        print(c2)
-                        proc = sp.Popen(c2.split() ,stdout=sp.PIPE)
+                    
+                    
+                    for algo in algos:
+                        cmd = cmd1.format(algo)
+                        proc = sp.Popen(cmd.split())
                         proc.wait()
-                        std_output, std_err = proc.communicate()
-                        print(std_output)
-                        if std_err is not None:
-                            raise Exception(std_err)
-                        avg_time , max_time = "",""
-                        if len(std_output.decode().split()) > 1:
-                            avg_time, max_time, _ = std_output.decode().split('\n')
-                        if not avg_time:
-                            lst.append("")#empty for that thread
-                            print("No o/p for thread cnt : " + str(thread_cnt) + " and  Iteration :  " + str(i),file = log_f_object,flush = True)
-                            continue
-                        print("Average Snapshot: " + str(avg_time),file = log_f_object,flush = True)
-                        avg_time_taken_list.append(float(avg_time))
 
-                        if not max_time:
-                            lst.append("")
-                            print("No max_time in o/p for thread cnt : " + str(thread_cnt)+ " and  Iteration : " + str(i),file = log_f_object,flush = True)
-                            continue
-                        print("Max Snapshot : " + str(max_time),file = log_f_object,flush = True)
-                        max_time_taken_list.append(float(max_time))
-                        print("\n",file= log_f_object,flush = True)
-                        print(file= log_f_object,flush = True)
-                        print(file= log_f_object,flush = True)
+                    number_of_triangles_parr = 0
+                    for thread_cnt in threads :
+                        max_lst = [thread_cnt]
+                        avg_lst = [thread_cnt]
+                        print("Thread cnt : " + str(thread_cnt),file = log_f_object,flush = True)
+                        cmd = cmd2
+                        for prob in dist_prob:
+                            cmd += " " + str(prob)
                         
-                    avg_time_taken_mean = 0
-                    if len(avg_time_taken_list)!=0:
-                        if(len(avg_time_taken_list)) > 5:
-                            avg_time_taken_list = avg_time_taken_list[2:]
-                        avg_time_taken_mean = int(sum(avg_time_taken_list)/len(avg_time_taken_list))
-                    avg_lst.append(avg_time_taken_mean)
-                    max_time_taken_mean = 0
-                    if len(avg_time_taken_list)!=0:
-                        if(len(max_time_taken_list)) > 5:
-                            max_time_taken_list = max_time_taken_list[2:]
-                        max_time_taken_mean = int(sum(max_time_taken_list)/len(max_time_taken_list))
-                    max_lst.append(max_time_taken_mean)
-                    print()
-                print("\n\n",file= log_f_object,flush = True)
-                writer_object_max.writerow(max_lst)
-                writer_object_avg.writerow(avg_lst)
-                print(file= log_f_object,flush = True)
+                        if debug:
+                            cmd += " debug"
+                        for algo in algos:
+                            print("Algo : "+ algo,file = log_f_object,flush = True)
+                            cmd = cmd2.format(algo,date_time_obj,str(thread_cnt),test_duration,init_vertices,init_edges)
+                            avg_time_taken_list = []
+                            max_time_taken_list = []
+
+                            #update parallel iterations
+                            for i in range(iterations):
+                                print("Iteration : "+ str(i),file = log_f_object,flush = True)
+                                print(cmd)
+                                proc = sp.Popen(cmd.split() ,stdout=sp.PIPE)
+                                proc.wait()
+                                std_output, std_err = proc.communicate()
+                                print(std_output)
+                                if std_err is not None:
+                                    raise Exception(std_err)
+                                avg_time , max_time = "",""
+                                if len(std_output.decode().split()) > 1:
+                                    avg_time, max_time, _ = std_output.decode().split('\n')
+                                if not avg_time:
+                                    lst.append("")#empty for that thread
+                                    print("No o/p for thread cnt : " + str(thread_cnt) + " and  Iteration :  " + str(i),file = log_f_object,flush = True)
+                                    continue
+                                print("Average Snapshot: " + str(avg_time),file = log_f_object,flush = True)
+                                avg_time_taken_list.append(float(avg_time))
+
+                                if not max_time:
+                                    lst.append("")
+                                    print("No max_time in o/p for thread cnt : " + str(thread_cnt)+ " and  Iteration : " + str(i),file = log_f_object,flush = True)
+                                    continue
+                                print("Max Snapshot : " + str(max_time),file = log_f_object,flush = True)
+                                max_time_taken_list.append(float(max_time))
+                                print("\n",file= log_f_object,flush = True)
+                                print(file= log_f_object,flush = True)
+                                print(file= log_f_object,flush = True)
+                                
+                            avg_time_taken_mean = 0
+                            if len(avg_time_taken_list)!=0:
+                                if(len(avg_time_taken_list)) > 5:
+                                    avg_time_taken_list = avg_time_taken_list[2:]
+                                avg_time_taken_mean = int(sum(avg_time_taken_list)/len(avg_time_taken_list))
+                            avg_lst.append(avg_time_taken_mean)
+                            max_time_taken_mean = 0
+                            if len(avg_time_taken_list)!=0:
+                                if(len(max_time_taken_list)) > 5:
+                                    max_time_taken_list = max_time_taken_list[2:]
+                                max_time_taken_mean = int(sum(max_time_taken_list)/len(max_time_taken_list))
+                            max_lst.append(max_time_taken_mean)
+                            print()
+                        print("\n\n",file= log_f_object,flush = True)
+                        writer_object_max.writerow(max_lst)
+                        writer_object_avg.writerow(avg_lst)
+                        print(file= log_f_object,flush = True)
 
 
 

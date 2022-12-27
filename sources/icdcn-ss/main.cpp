@@ -99,8 +99,6 @@ void* pthread_call(void* t)
                 if(v == 0)
                     goto l;
                 G1.AddV(v,NTHREADS);
-                if(*cont_exec)
-                    ops[threadnum]++;
                 break;
             }
                 case 1:
@@ -109,57 +107,47 @@ void* pthread_call(void* t)
                 if(v == 0)
                     goto l2;
                 G1.RemoveV(v);
-                if(*cont_exec)
-                    ops[threadnum]++;
-                break;			
+                    break;			
             }
 
                 
             case 2:
             {
-        l4:		u = (rand() % (vertexID))+1;	
-                v = (rand() % (vertexID))+1;
-                if(u == v || u == 0 || v == 0)	
-                    goto l4;
-                G1.AddE(u,v); 
-                if(*cont_exec)
-                    ops[threadnum]++;
-                break;			
+            l4:		u = (rand() % (vertexID))+1;	
+                    v = (rand() % (vertexID))+1;
+                    if(u == v || u == 0 || v == 0)	
+                        goto l4;
+                    G1.AddE(u,v); 
+                    break;			
             }
                
             case 3:
             {
-        l3:		u = (rand() % (vertexID))+1;		
-                v = (rand() % (vertexID))+1;
-                if(u == v || u == 0 || v == 0)	
-                    goto l3;
-                G1.RemoveE(u,v); 
-                if(*cont_exec)
-                    ops[threadnum]++;
-                break;	
+            l3:		u = (rand() % (vertexID))+1;		
+                    v = (rand() % (vertexID))+1;
+                    if(u == v || u == 0 || v == 0)	
+                        goto l3;
+                    G1.RemoveE(u,v); 
+                    break;	
             }
             
            case 4:
             {
-        l5:		u = (rand() % (vertexID))+1;		
-                v = (rand() % (vertexID))+1;
-                if(u == v || u == 0 || v == 0)		
-                    goto l5;
-                G1.ContainsE(u,v); 
-                if(*cont_exec)
-                    ops[threadnum]++;
-                break;			
+            l5:		u = (rand() % (vertexID))+1;		
+                    v = (rand() % (vertexID))+1;
+                    if(u == v || u == 0 || v == 0)		
+                        goto l5;
+                    G1.ContainsE(u,v); 
+                    break;			
             }
             case 5:
             {
             
-            l6:	v = rand() % (vertexID);	
-                if(v == 0)
-                    goto l6;
-                G1.ContainsV(v);
-                if(*cont_exec)
-                    ops[threadnum]++;
-                    break;
+                l6:	v = rand() % (vertexID);	
+                    if(v == 0)
+                        goto l6;
+                    G1.ContainsV(v);
+                        break;
             }
             case 6:
             {
@@ -245,9 +233,9 @@ int main(int argc, char*argv[])
       	{
 		pthread_join(thr[i], NULL);
 	}
-	double max_cnt = 0;
+	int max_cnt = 0;
     long tot_cnt = 0;
-    double avg_cnt = 0;
+    long avg_cnt = 0;
 
     for( int i = 0;i < NTHREADS ; i++){
         //check max
@@ -257,8 +245,7 @@ int main(int argc, char*argv[])
         tot_cnt += ops[i];
     }
     //if(avg_cnt != 0.0f)
-    avg_cnt = tot_cnt * 1.0 / (num_of_threads * test_duration);
-    max_cnt = max_cnt * 1.0 /( num_of_threads * test_duration);
+    avg_cnt = tot_cnt*1.0 / num_of_threads;
 
     cout << avg_cnt << fixed << endl;
     cout << max_cnt << fixed << endl;

@@ -40,7 +40,6 @@
 #include<list>
 #include<queue>
 #include<stack>
-#include<string>
 
 #define vntp "VERTEX NOT PRESENT"
 #define entp "EDGE NOT PRESENT"
@@ -562,8 +561,7 @@ bool compare_snapshot(snap_vlist *snap1_head, snap_vlist *snap2_head){
      for( i=1;i<=n;i++){
          AddV(i, NT);
        }
-       
-  for( i=1;i<=m;i++){
+     for( i=1;i<=m;i++){
         
           int u = rand()%n +1;
           int v = rand()%n +1;
@@ -583,7 +581,7 @@ bool compare_snapshot(snap_vlist *snap1_head, snap_vlist *snap2_head){
           
        
       } 
-   } 
+ }
 
 // create BFSNode
 bfslist_t* createBFSNode(int ecount, vlist_t *n, bfslist_t *p, bfslist_t *next){

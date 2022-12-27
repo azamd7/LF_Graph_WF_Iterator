@@ -8,5 +8,7 @@ log/**/*
 output/**/*
 !output/.gitkeep
 
+**/*.txt
+
 script_log/**/*
 !output/.gitkeep
