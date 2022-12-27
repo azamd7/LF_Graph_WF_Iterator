@@ -11,4 +11,4 @@ output/**/*
 **/*.txt
 
 script_log/**/*
-!output/.gitkeep
+!script_log/.gitkeep
