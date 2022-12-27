@@ -46,7 +46,7 @@ dist_probs ={
             }
 
 with open(script_log_file, 'w+') as log_f_object:
-    for key in dist_probs: 
+    for key in dist_probs.keys(): 
         print("\n\n\n\n\n\nProbablity Dist: "+ key +" " + str( dist_probs[key])  ,file = log_f_object,flush = True)
         dist_prob = dist_probs[key].copy()
         for i in range(0,11,2):
@@ -104,7 +104,7 @@ with open(script_log_file, 'w+') as log_f_object:
                             cmd += " debug"
                         for algo in algos:
                             print("Algo : "+ algo,file = log_f_object,flush = True)
-                            cmd = cmd2.format(algo,date_time_obj,str(thread_cnt),test_duration,init_vertices,init_edges)
+                            cmd = cmd.format(algo,date_time_obj,str(thread_cnt),test_duration,init_vertices,init_edges)
                             avg_time_taken_list = []
                             max_time_taken_list = []
 
