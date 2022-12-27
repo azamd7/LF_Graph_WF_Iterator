@@ -60,6 +60,8 @@
 
 #include <initializer_list>
 
+#include <unistd.h>
+
 using namespace std;
 
 void print_graph(fstream *logfile , Vnode * graph_headv);

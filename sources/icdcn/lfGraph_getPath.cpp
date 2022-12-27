@@ -41,6 +41,7 @@
 #include<queue>
 #include<stack>
 #include<string>
+#include <unistd.h>
 
 #define vntp "VERTEX NOT PRESENT"
 #define entp "EDGE NOT PRESENT"
