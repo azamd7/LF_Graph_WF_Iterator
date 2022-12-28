@@ -1,4 +1,4 @@
-.vscode/**/*
+.vscode
 
 log/**/*
 !log/.gitkeep
@@ -12,3 +12,5 @@ output/**/*
 
 script_log/**/*
 !script_log/.gitkeep
+
+temp_output

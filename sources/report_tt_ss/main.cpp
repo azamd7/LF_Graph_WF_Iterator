@@ -627,14 +627,17 @@ void *thread_funct(void * t_args){
                 SnapCollector * sc =  takeSnapshot(graph->head , max_threads, &logfile_th,debug);
                 chrono::high_resolution_clock::time_point endT = chrono::high_resolution_clock::now();
                 double timeTaken = chrono::duration_cast<chrono::microseconds>(endT-startT).count() ;
-                tts.push_back(timeTaken);
-                if (max_times[thread_num] < timeTaken){
-                    max_times[thread_num] = timeTaken;
+                if(*continue_exec){
+                    tts.push_back(timeTaken);
+                    if (max_times[thread_num] < timeTaken){
+                        max_times[thread_num] = timeTaken;
+                    }
                 }
                 if(debug){
                     logfile_th << "TimeTaken : " << timeTaken << endl; 
                     sc->print_snap_graph(&logfile_th);
                 }
+
             }
             break;
         

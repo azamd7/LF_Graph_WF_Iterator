@@ -61,6 +61,8 @@ typedef struct infothread{
   int * ops;
   vector<double> * dist_prob;
   bool *cont_exec;
+  double * max_times;
+  double * avg_times;
 }tinfo;
 
 
@@ -72,10 +74,12 @@ void* pthread_call(void* t)
         slist G1=ti->G;
         int threadnum = ti->threadnum;
         bool * cont_exec = ti->cont_exec;
-        
+        double * avg_times = ti->avg_times;
+         double * max_times = ti->max_times;
         int * ops = ti->ops;
         vector<double> * dist_prob = ti->dist_prob;
-        
+    
+    vector<double> tts;//list of time taken for snapshot
 	int u, v;;
     random_device rd;
     mt19937 gen(rd());
@@ -151,7 +155,7 @@ void* pthread_call(void* t)
             }
             case 6:
             {
-
+                chrono::high_resolution_clock::time_point startT = chrono::high_resolution_clock::now();
                 snap_vlist * vhead1 = G1.snapshot();
                 snap_vlist * vhead2 = nullptr;
                 while(*cont_exec){
@@ -162,13 +166,29 @@ void* pthread_call(void* t)
                     vhead1 = vhead2;
                     //cout << "cont exec"<< *cont_exec << endl;
                 }
-                if(*cont_exec)
-                    ops[threadnum]++;
-                break;
+                chrono::high_resolution_clock::time_point endT = chrono::high_resolution_clock::now();
+                double timeTaken = chrono::duration_cast<chrono::microseconds>(endT-startT).count() ;
+                
+                if(*cont_exec){
+                    tts.push_back(timeTaken);
+                    if (max_times[threadnum] < timeTaken){
+                        max_times[threadnum] = timeTaken;
+                    }
+                }
             }
         }
         
 	}
+
+    //calculate average of all the timetaken
+    if(tts.size() > 0){
+        double total_tts = 0;
+        for(double tt : tts){
+            total_tts += tt;
+        }
+        avg_times[threadnum] = total_tts / tts.size();
+
+    }
     return nullptr; 		
 }
 
@@ -214,6 +234,10 @@ int main(int argc, char*argv[])
     int *ops = new int(NTHREADS);
     bool *cont_exec = new bool(true);
 	//cout << "timer started . . ." << endl;
+
+    double * max_times = new double[NTHREADS];
+    double * avg_times = new double[NTHREADS];
+
 	for (i=0;i < NTHREADS;i++)
     {
         tinfo *t =(tinfo*) malloc(sizeof(tinfo));
@@ -223,6 +247,8 @@ int main(int argc, char*argv[])
         t->ops = ops;
         t->dist_prob = &dist_prob;
         t->cont_exec = cont_exec;
+        t->max_times = max_times;
+        t->avg_times = avg_times;
         pthread_create(&thr[i], &attr, pthread_call, (void*)t);
     }
     sleep(seconds);
@@ -233,23 +259,24 @@ int main(int argc, char*argv[])
       	{
 		pthread_join(thr[i], NULL);
 	}
-	int max_cnt = 0;
-    long tot_cnt = 0;
-    long avg_cnt = 0;
 
-    for( int i = 0;i < NTHREADS ; i++){
+
+    double max_time = 0;
+    double avg_time = 0;
+
+    for( int i = 0;i < num_of_threads ; i++){
         //check max
-        if(max_cnt < ops[i]){
-            max_cnt = ops[i];
+        if(max_time < max_times[i]){
+            max_time = max_times[i];
         }
-        tot_cnt += ops[i];
+        avg_time += avg_times[i];
     }
-    //if(avg_cnt != 0.0f)
-    avg_cnt = tot_cnt*1.0 / num_of_threads;
 
-    cout << avg_cnt << fixed << endl;
-    cout << max_cnt << fixed << endl;
+    avg_time = avg_time / num_of_threads;
 
+
+    cout << avg_time << fixed << endl;
+    cout << max_time << fixed << endl;
 	return 0;
 }           
 
