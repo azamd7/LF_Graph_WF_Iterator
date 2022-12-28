@@ -13,14 +13,19 @@ date_time_obj =now.strftime('%H_%M_%S')
 
 
 threads = 52 
-threads = 8
+#######
+#threads = 8
+#######
 algos = ["icdcn_tt_ss" , "report_tt_ss" ]
 debug = False
 main_file = "main.cpp"
 iterations = 7
 test_duration = "10" #no of sec before stop executions
-init_vertices = 10**4
-init_edges = str(2 * (10**4))
+init_vertices = [10**4 * i for i in range(1,7)]
+#######
+#init_vertices = [10**4 * i for i in range(1,3)]
+#######
+init_edges = [2 * i for i in init_vertices]
 
 #files
 maxt_output_file_fmt = '../output/{0}_op_' + date_time_obj +"_maxt_{1}" +  '.csv'
@@ -59,7 +64,7 @@ with open(script_log_file, 'w+') as log_f_object:
             maxt_output_file = maxt_output_file_fmt.format(key , "ss_" + str(i))
             avgt_output_file = avgt_output_file_fmt.format(key , "ss_" + str(i))
             with open( maxt_output_file, 'w+') as f_object:
-                lst = ["Threads" ]
+                lst = ["Init Nodes" ]
                 for algo in algos:
                     lst.append(algo)
                 
@@ -68,7 +73,7 @@ with open(script_log_file, 'w+') as log_f_object:
                 writer_object.writerow(lst)
 
             with open( avgt_output_file, 'w+') as f_object:
-                lst = ["Threads"  ]
+                lst = ["Init Nodes"  ]
                 for algo in algos:
                     lst.append(algo)
                 writer_object = writer(f_object)
@@ -92,10 +97,12 @@ with open(script_log_file, 'w+') as log_f_object:
                         proc.wait()
 
                     number_of_triangles_parr = 0
-                    for thread_cnt in threads :
-                        max_lst = [thread_cnt]
-                        avg_lst = [thread_cnt]
-                        print("Thread cnt : " + str(thread_cnt),file = log_f_object,flush = True)
+                    for p in range(len(init_vertices)):
+                        init_node_cnt = init_vertices[p]
+                        init_edge_cnt = init_edges[p]
+                        max_lst = [init_node_cnt]
+                        avg_lst = [init_node_cnt]
+                        print("Init node cnt : " + str(init_node_cnt),file = log_f_object,flush = True)
                         
                         for algo in algos:
                             cmd = cmd2
@@ -105,7 +112,7 @@ with open(script_log_file, 'w+') as log_f_object:
                             if debug:
                                 cmd += " debug"
                             print("Algo : "+ algo,file = log_f_object,flush = True)
-                            cmd = cmd.format(algo,date_time_obj,str(thread_cnt),test_duration,init_vertices,init_edges)
+                            cmd = cmd.format(algo,date_time_obj,str(threads),test_duration,str(init_node_cnt),str(init_edge_cnt))
                             avg_time_taken_list = []
                             max_time_taken_list = []
 
