@@ -16,7 +16,7 @@ threads = 52
 #######
 #threads = 8
 #######
-algos = ["icdcn_tt_ss" , "report_tt_ss" ]
+algos = ["icdcn_tp" , "report_tp" ]
 debug = False
 main_file = "main.cpp"
 iterations = 7
@@ -131,14 +131,14 @@ with open(script_log_file, 'w+') as log_f_object:
                                     avg_time, max_time, _ = std_output.decode().split('\n')
                                 if not avg_time:
                                     lst.append("")#empty for that thread
-                                    print("No o/p for thread cnt : " + str(thread_cnt) + " and  Iteration :  " + str(i),file = log_f_object,flush = True)
+                                    print("No o/p for init node cnt : " + str(init_node_cnt) + " and  Iteration :  " + str(i),file = log_f_object,flush = True)
                                     continue
                                 print("Average Snapshot: " + str(avg_time),file = log_f_object,flush = True)
                                 avg_time_taken_list.append(float(avg_time))
 
                                 if not max_time:
                                     lst.append("")
-                                    print("No max_time in o/p for thread cnt : " + str(thread_cnt)+ " and  Iteration : " + str(i),file = log_f_object,flush = True)
+                                    print("No max_time in o/p for init node cnt : " + str(init_node_cnt)+ " and  Iteration : " + str(i),file = log_f_object,flush = True)
                                     continue
                                 print("Max Snapshot : " + str(max_time),file = log_f_object,flush = True)
                                 max_time_taken_list.append(float(max_time))
