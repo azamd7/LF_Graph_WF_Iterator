@@ -282,7 +282,7 @@ class SnapCollector{
                         (*logfile) << "To Add snap Vertex : " << next_Vnode->val << "(" << next_Vnode << ")" << endl;
                     Snap_Vnode * tmp_end_snap_Vnode = end_snap_Vnode;
                     //this would fail if some other node is added
-                    if(atomic_compare_exchange_strong(&temp_tail_snap_V_ptr->vnext , &tmp_end_snap_Vnode, snap_Vnode) and debug){
+                    if(atomic_compare_exchange_strong(&temp_tail_snap_V_ptr->vnext , &tmp_end_snap_Vnode, snap_Vnode)){
                         (*logfile) << "Snap Added Vertex : " << snap_Vnode->vnode->val << "(" << snap_Vnode->vnode << ")" << endl;
                         if(atomic_compare_exchange_strong(&tail_snap_V_ptr, &temp_tail_snap_V_ptr, snap_Vnode) and debug)
                             (*logfile) << "Updated tail Snap Vertex : " << next_Vnode->val << "(" << next_Vnode << ")" << endl;
@@ -419,13 +419,18 @@ class SnapCollector{
                 VertexReport* vrep_head = this->reports[i]->head_vertex_report;
                 VertexReport * block_vreport = new VertexReport(nullptr  , 3 , vrep_head);
 
-
-                // since will only run limited numbner of times, therefore WF
-                while((vrep_head == nullptr|| vrep_head->action!= 3 ) 
-                            and !atomic_compare_exchange_strong(&reports[i]->head_vertex_report, &vrep_head, block_vreport))
-                {
-                    vrep_head = this->reports[i]->head_vertex_report;
-                    block_vreport->nextReport = vrep_head;
+                if(vrep_head == nullptr || vrep_head->action != 3){
+                    // since will only run limited numbner of times, therefore WF
+                    while( !atomic_compare_exchange_strong(&reports[i]->head_vertex_report, &vrep_head, block_vreport))
+                    {
+                        vrep_head = this->reports[i]->head_vertex_report;
+                        if(vrep_head->action == 3)
+                        {
+                            delete block_vreport;
+                            break;
+                        }
+                        block_vreport->nextReport = vrep_head;
+                    }
                 }
                 if(debug)
                     (*logfile) << "Blocked vertex reports" << endl;
@@ -435,12 +440,17 @@ class SnapCollector{
                 EdgeReport * block_ereport = new EdgeReport(nullptr , nullptr ,3, erep_head );
 
                  // since will only run limited numbner of times, therefore WF
-                while((erep_head== nullptr || erep_head->action!= 3 )
-                            and !atomic_compare_exchange_strong(&reports[i]->head_edge_report, &erep_head, block_ereport))
-                {
-                    erep_head = this->reports[i]->head_edge_report;
-                    block_ereport->nextReport = erep_head;
-                }
+                 if(erep_head== nullptr || erep_head->action!= 3 ){
+                    while(!atomic_compare_exchange_strong(&reports[i]->head_edge_report, &erep_head, block_ereport))
+                    {
+                        erep_head = this->reports[i]->head_edge_report;
+                        if(erep_head->action == 3){
+                            delete block_ereport ;
+                            break;
+                        }
+                        block_ereport->nextReport = erep_head;
+                    }
+                 }
                 if(debug)
                     (*logfile) << "Blocked edge reports" << endl;
 
@@ -469,9 +479,12 @@ class SnapCollector{
 
                 vreports = new vector<VertexReport>(vreports1->size());
                 partial_sort_copy(vreports1->begin(), vreports1->end(),vreports->begin(), vreports->end() ,&vertex_comparator);
+                delete vreports1;
                 vector<VertexReport> *tmp = nullptr;
-                if(!atomic_compare_exchange_strong(&sorted_vertex_reports_ptr , &tmp , vreports))
+                if(!atomic_compare_exchange_strong(&sorted_vertex_reports_ptr , &tmp , vreports)){
+                    delete vreports;
                     vreports = tmp; //if cas fails tmp will have the current value
+                }
             }
             
             
@@ -561,8 +574,10 @@ class SnapCollector{
                  
                 sort(edge_reports->begin(), edge_reports->end(), &edge_comparator);
                 vector<EdgeReport> * tmp = nullptr;
-                if(!atomic_compare_exchange_strong(&sorted_edge_reports_ptr , &tmp , edge_reports))                
-                     edge_reports = tmp;//cas fails tmp will have the current value
+                if(!atomic_compare_exchange_strong(&sorted_edge_reports_ptr , &tmp , edge_reports)){            
+                    delete edge_reports;
+                    edge_reports = tmp;//cas fails tmp will have the current value
+                }
                 
             }
             

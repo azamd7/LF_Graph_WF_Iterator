@@ -860,7 +860,7 @@ int main(int argc, char** argv) {
     string logFileName = "../../log/log_";
     
     //will be used in script
-    int num_of_threads = 1;
+    int num_of_threads = 4;
     int test_duration = 10;
     int initial_vertices = (int)pow(10 , 4);
     int initial_edges = 2 * (int)pow(10, 4);
@@ -898,13 +898,13 @@ int main(int argc, char** argv) {
     fstream opfile;
     opfile.open(opFileName,ios::out);
     
-    opfile << logFileName << endl;
-    opfile << num_of_threads << endl;
-    opfile << test_duration << endl;
-    opfile << initial_vertices << endl;
-    opfile << initial_edges <<endl;
-    opfile << dist_prob[0] << " " << dist_prob[1] << " " << dist_prob[2] << " " << dist_prob[3] << " " << dist_prob[4] <<" " << dist_prob[5] <<" " << dist_prob[6]  << endl;
-    opfile << debug << endl;
+    //opfile << logFileName << endl;
+    //opfile << num_of_threads << endl;
+    //opfile << test_duration << endl;
+    //opfile << initial_vertices << endl;
+    //opfile << initial_edges <<endl;
+    //opfile << dist_prob[0] << " " << dist_prob[1] << " " << dist_prob[2] << " " << dist_prob[3] << " " << dist_prob[4] <<" " << dist_prob[5] <<" " << dist_prob[6]  << endl;
+    //opfile << debug << endl;
 
     //init_edges.store(initial_edges);
     //init_nodes.store(initial_vertices);

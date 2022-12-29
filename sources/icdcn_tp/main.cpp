@@ -60,10 +60,10 @@ typedef struct infothread{
   int threadnum;
   int * ops;
   vector<double> * dist_prob;
-  bool *cont_exec;
 }tinfo;
 
 
+atomic<bool> cont_exec;
 
 void* pthread_call(void* t)
 {
@@ -71,7 +71,7 @@ void* pthread_call(void* t)
         long Tid = ti->tid;
         slist G1=ti->G;
         int threadnum = ti->threadnum;
-        bool * cont_exec = ti->cont_exec;
+
         
         int * ops = ti->ops;
         vector<double> * dist_prob = ti->dist_prob;
@@ -80,7 +80,7 @@ void* pthread_call(void* t)
     random_device rd;
     mt19937 gen(rd());
     discrete_distribution<> d(dist_prob->begin() , dist_prob->end());
-	while(*cont_exec)
+	while(cont_exec)
 	{
 		gettimeofday(&tv2,NULL);
 		difference = my_difftime (&tv1, &tv2);
@@ -99,17 +99,17 @@ void* pthread_call(void* t)
                 if(v == 0)
                     goto l;
                 G1.AddV(v,NTHREADS);
-                if(*cont_exec)
+                if(cont_exec)
                     ops[threadnum]++;
                 break;
             }
-                case 1:
+            case 1:
             {
                 l2:	v = rand() % (vertexID)+1;		
                 if(v == 0)
                     goto l2;
                 G1.RemoveV(v);
-                if(*cont_exec)
+                if(cont_exec)
                     ops[threadnum]++;
                 break;			
             }
@@ -117,36 +117,36 @@ void* pthread_call(void* t)
                 
             case 2:
             {
-        l4:		u = (rand() % (vertexID))+1;	
+            l4:	u = (rand() % (vertexID))+1;	
                 v = (rand() % (vertexID))+1;
                 if(u == v || u == 0 || v == 0)	
                     goto l4;
                 G1.AddE(u,v); 
-                if(*cont_exec)
+                if(cont_exec)
                     ops[threadnum]++;
                 break;			
             }
                
             case 3:
             {
-        l3:		u = (rand() % (vertexID))+1;		
+            l3:	u = (rand() % (vertexID))+1;		
                 v = (rand() % (vertexID))+1;
                 if(u == v || u == 0 || v == 0)	
                     goto l3;
                 G1.RemoveE(u,v); 
-                if(*cont_exec)
+                if(cont_exec)
                     ops[threadnum]++;
                 break;	
             }
             
            case 4:
             {
-        l5:		u = (rand() % (vertexID))+1;		
+            l5:	u = (rand() % (vertexID))+1;		
                 v = (rand() % (vertexID))+1;
                 if(u == v || u == 0 || v == 0)		
                     goto l5;
                 G1.ContainsE(u,v); 
-                if(*cont_exec)
+                if(cont_exec)
                     ops[threadnum]++;
                 break;			
             }
@@ -157,16 +157,16 @@ void* pthread_call(void* t)
                 if(v == 0)
                     goto l6;
                 G1.ContainsV(v);
-                if(*cont_exec)
+                if(cont_exec)
                     ops[threadnum]++;
-                    break;
+                break;
             }
             case 6:
             {
 
                 snap_vlist * vhead1 = G1.snapshot();
                 snap_vlist * vhead2 = nullptr;
-                while(*cont_exec){
+                while(cont_exec){
                     vhead2 = G1.snapshot();
                     if(G1.compare_snapshot(vhead1 , vhead2)){
                         break;
@@ -174,9 +174,8 @@ void* pthread_call(void* t)
                     vhead1 = vhead2;
                     //cout << "cont exec"<< *cont_exec << endl;
                 }
-                if(*cont_exec)
+                if(cont_exec)
                     ops[threadnum]++;
-                break;
             }
         }
         
@@ -188,7 +187,6 @@ int main(int argc, char*argv[])
 {
 	slist sg;
 	vertexID.store(1);
-	int i;
     int num_of_threads = 13;
     int test_duration = 10;
     int initial_vertices = (int)pow(10 , 3);
@@ -216,33 +214,30 @@ int main(int argc, char*argv[])
 	sg.initGraph(initial_vertices, initial_edges, NTHREADS);
     //cout << "graph created" << endl;
 
-        pthread_t *thr = new pthread_t[NTHREADS];
-	pthread_attr_t attr;
-   	pthread_attr_init (&attr);
-   	pthread_attr_setdetachstate (&attr, PTHREAD_CREATE_JOINABLE);
+    pthread_t thr[NTHREADS];
+	tinfo attr[NTHREADS];
+
    	int dig,temp; 
 	double duration = 0.0;
         gettimeofday(&tv1,NULL);
-    int *ops = new int(NTHREADS);
-    bool *cont_exec = new bool(true);
+    int *ops = new int[NTHREADS];
+    cont_exec.store(true);
 	//cout << "timer started . . ." << endl;
-	for (i=0;i < NTHREADS;i++)
+	for (int i=0;i < NTHREADS;i++)
     {
-        tinfo *t =(tinfo*) malloc(sizeof(tinfo));
-        t->tid = i;
-        t->G = sg;
-        t->threadnum = i;
-        t->ops = ops;
-        t->dist_prob = &dist_prob;
-        t->cont_exec = cont_exec;
-        pthread_create(&thr[i], &attr, pthread_call, (void*)t);
+        attr[i].tid = i;
+        attr[i].G = sg;
+        attr[i].threadnum = i;
+        attr[i].ops = ops;
+        attr[i].dist_prob = &dist_prob;
+        pthread_create(&thr[i], nullptr, pthread_call, &attr[i]);
     }
     sleep(seconds);
-    *cont_exec = false;
+    cont_exec.store(false);
     //cout << "cont is false"  <<endl;
 
-	for (i = 0; i < NTHREADS; i++)
-      	{
+	for (int i = 0; i < NTHREADS; i++)
+    {
 		pthread_join(thr[i], NULL);
 	}
 	double max_cnt = 0;
@@ -257,8 +252,8 @@ int main(int argc, char*argv[])
         tot_cnt += ops[i];
     }
     //if(avg_cnt != 0.0f)
-    avg_cnt = tot_cnt * 1.0 / (num_of_threads * test_duration);
-    max_cnt = max_cnt * 1.0 /( num_of_threads * test_duration);
+    avg_cnt = tot_cnt * 1.0 / (NTHREADS * test_duration);
+    max_cnt = max_cnt * 1.0 / (NTHREADS * test_duration);
 
     cout << avg_cnt << fixed << endl;
     cout << max_cnt << fixed << endl;

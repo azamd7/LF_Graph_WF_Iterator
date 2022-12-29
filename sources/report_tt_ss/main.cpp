@@ -148,6 +148,7 @@ class GraphList {
                     reportVertex(newv , tid , 2, logfile ,debug);// 
                     return true;
                 }
+                delete newv;
             }
         }
     }

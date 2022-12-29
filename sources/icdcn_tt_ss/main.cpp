@@ -231,7 +231,7 @@ int main(int argc, char*argv[])
    	int dig,temp; 
 	double duration = 0.0;
         gettimeofday(&tv1,NULL);
-    int *ops = new int(NTHREADS);
+    int *ops = new int[NTHREADS];
     bool *cont_exec = new bool(true);
 	//cout << "timer started . . ." << endl;
 
