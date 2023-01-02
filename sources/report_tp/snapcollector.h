@@ -170,7 +170,7 @@ class SnapCollector{
         //vector <Report> delete_vertex_reports; //This will be used to check the while adding edges 
     
         int no_of_threads;
-        atomic<int> threads_accessing = {0} ; //no of threads accesssing the snapcollector
+        //atomic<int> threads_accessing = {0} ; //no of threads accesssing the snapcollector
     
 
         //for reconstruction using report
@@ -194,7 +194,7 @@ class SnapCollector{
             for( int i ; i < no_of_threads ;i++){
                 reports[i] = new Report();
             }
-            ++threads_accessing;
+            //++threads_accessing;
             
 
         }
@@ -799,7 +799,7 @@ SnapCollector * acquireSnapCollector(Vnode * graph_head, int max_threads,fstream
     SnapCollector *SC = PSC;
   
     if (SC != nullptr and SC->isActive()){
-        int num = ++SC->threads_accessing;
+        //int num = ++SC->threads_accessing;
         return SC;
     }
     
@@ -809,7 +809,7 @@ SnapCollector * acquireSnapCollector(Vnode * graph_head, int max_threads,fstream
         //if this fails some other thread has created and updated a new snapcollector
         delete newSC ;
         newSC = SC ;
-        int num = ++newSC->threads_accessing ;
+        //int num = ++newSC->threads_accessing ;
         
         
     }

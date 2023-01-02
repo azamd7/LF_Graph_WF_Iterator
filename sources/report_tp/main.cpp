@@ -698,17 +698,7 @@ void *thread_funct(void * t_args){
                     
                 }
                 
-                int threads_remain = --sc->threads_accessing;
-                if(debug)
-                {
-                    (logfile_th) << "Threads Remaining for snapshot "<< sc <<" is " << threads_remain <<endl;
-                }
-                //if(threads_remain == 0 ){
-                //    if(PSC.load() != sc){
-                //        (logfile_th) << "Snapshot : " << sc << " deleting " << endl;
-                //        delete sc;
-                //    }
-                //}
+               
             }
             break;
         
