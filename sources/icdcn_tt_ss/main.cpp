@@ -52,7 +52,7 @@ double seconds;
 struct timeval tv1, tv2;
 TIME_DIFF * difference;
 int NTHREADS;
-
+atomic<bool> cont_exec;
 
 typedef struct infothread{
   long tid;
@@ -60,7 +60,6 @@ typedef struct infothread{
   int threadnum;
   int * ops;
   vector<double> * dist_prob;
-  bool *cont_exec;
   double * max_times;
   double * avg_times;
 }tinfo;
@@ -73,7 +72,6 @@ void* pthread_call(void* t)
         long Tid = ti->tid;
         slist G1=ti->G;
         int threadnum = ti->threadnum;
-        bool * cont_exec = ti->cont_exec;
         double * avg_times = ti->avg_times;
          double * max_times = ti->max_times;
         int * ops = ti->ops;
@@ -84,7 +82,7 @@ void* pthread_call(void* t)
     random_device rd;
     mt19937 gen(rd());
     discrete_distribution<> d(dist_prob->begin() , dist_prob->end());
-	while(*cont_exec)
+	while(cont_exec)
 	{
 		gettimeofday(&tv2,NULL);
 		difference = my_difftime (&tv1, &tv2);
@@ -98,7 +96,6 @@ void* pthread_call(void* t)
         switch(op){
             case 0:
             {
-                    vertexID++;
                 l:	v = rand() % (vertexID);		
                 if(v == 0)
                     goto l;
@@ -158,7 +155,7 @@ void* pthread_call(void* t)
                 chrono::high_resolution_clock::time_point startT = chrono::high_resolution_clock::now();
                 snap_vlist * vhead1 = G1.snapshot();
                 snap_vlist * vhead2 = nullptr;
-                while(*cont_exec){
+                while(cont_exec){
                     vhead2 = G1.snapshot();
                     if(G1.compare_snapshot(vhead1 , vhead2)){
                         break;
@@ -169,7 +166,7 @@ void* pthread_call(void* t)
                 chrono::high_resolution_clock::time_point endT = chrono::high_resolution_clock::now();
                 double timeTaken = chrono::duration_cast<chrono::microseconds>(endT-startT).count() ;
                 
-                if(*cont_exec){
+                if(cont_exec){
                     tts.push_back(timeTaken);
                     if (max_times[threadnum] < timeTaken){
                         max_times[threadnum] = timeTaken;
@@ -219,7 +216,7 @@ int main(int argc, char*argv[])
     }
 	NTHREADS = num_of_threads;
 	seconds = test_duration;		
-	vertexID.store(initial_vertices + 1);	
+	vertexID.store(10 * initial_vertices);	
         sg.init();
 	sg.initGraph(initial_vertices, initial_edges, NTHREADS);
     //cout << "graph created" << endl;
@@ -232,8 +229,8 @@ int main(int argc, char*argv[])
 	double duration = 0.0;
         gettimeofday(&tv1,NULL);
     int *ops = new int[NTHREADS];
-    bool *cont_exec = new bool(true);
-	//cout << "timer started . . ." << endl;
+	cont_exec.store(true);
+    //cout << "timer started . . ." << endl;
 
     double * max_times = new double[NTHREADS];
     double * avg_times = new double[NTHREADS];
@@ -246,13 +243,12 @@ int main(int argc, char*argv[])
         t->threadnum = i;
         t->ops = ops;
         t->dist_prob = &dist_prob;
-        t->cont_exec = cont_exec;
         t->max_times = max_times;
         t->avg_times = avg_times;
         pthread_create(&thr[i], &attr, pthread_call, (void*)t);
     }
     sleep(seconds);
-    *cont_exec = false;
+    cont_exec.store(false);
     //cout << "cont is false"  <<endl;
 
 	for (i = 0; i < NTHREADS; i++)

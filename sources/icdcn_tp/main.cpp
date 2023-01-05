@@ -94,7 +94,6 @@ void* pthread_call(void* t)
         switch(op){
             case 0:
             {
-                    vertexID++;
                 l:	v = rand() % (vertexID);		
                 if(v == 0)
                     goto l;
@@ -209,7 +208,7 @@ int main(int argc, char*argv[])
     }
 	NTHREADS = num_of_threads;
 	seconds = test_duration;		
-	vertexID.store(initial_vertices + 1);	
+	vertexID.store(10*initial_vertices);	
         sg.init();
 	sg.initGraph(initial_vertices, initial_edges, NTHREADS);
     //cout << "graph created" << endl;
@@ -241,7 +240,7 @@ int main(int argc, char*argv[])
 		pthread_join(thr[i], NULL);
 	}
 	double max_cnt = 0;
-    long tot_cnt = 0;
+    double tot_cnt = 0;
     double avg_cnt = 0;
 
     for( int i = 0;i < NTHREADS ; i++){
@@ -253,7 +252,7 @@ int main(int argc, char*argv[])
     }
     //if(avg_cnt != 0.0f)
     avg_cnt = tot_cnt * 1.0 / (NTHREADS * test_duration);
-    max_cnt = max_cnt * 1.0 / (NTHREADS * test_duration);
+    max_cnt = max_cnt * 1.0 / (test_duration);
 
     cout << avg_cnt << fixed << endl;
     cout << max_cnt << fixed << endl;

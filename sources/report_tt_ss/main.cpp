@@ -492,6 +492,9 @@ void print_graph(fstream *logfile , Vnode * graph_headv){
     (*logfile) << "Tail" << endl;
     (*logfile) << "Graph(End)-------" << endl;
 }
+
+atomic<bool> cont_exec;
+
 /**
  * @brief paramteter that are to be passed on to the threads
  * 
@@ -502,7 +505,6 @@ struct thread_args{
     int thread_num;
     bool debug ;  
     int max_nodes;
-    bool * continue_exec; 
     int max_threads;
     double * max_times;
     double * avg_times;
@@ -534,7 +536,6 @@ void *thread_funct(void * t_args){
     int max_nodes = ((struct thread_args *)t_args)->max_nodes;
     int max_threads = ((struct thread_args *)t_args)->max_threads;
     //int prob_arr[4] = ((struct thread_args *)t_args)->prob_arr;
-    bool *continue_exec = ((struct thread_args *)t_args)->continue_exec;
     double * avg_times = ((struct thread_args *)t_args)->avg_times;
     double * max_times = ((struct thread_args *)t_args)->max_times;
     vector<double> * dist_prob = ((struct thread_args *)t_args)->dist_prob;
@@ -549,7 +550,7 @@ void *thread_funct(void * t_args){
     random_device rd;
     mt19937 gen(rd());
     discrete_distribution<> d(dist_prob->begin() , dist_prob->end());
-    while(*continue_exec){
+    while(cont_exec){
         random_device rd;
         mt19937 gen(rd());
         discrete_distribution<> d(dist_prob->begin() , dist_prob->end());
@@ -628,7 +629,7 @@ void *thread_funct(void * t_args){
                 SnapCollector * sc =  takeSnapshot(graph->head , max_threads, &logfile_th,debug);
                 chrono::high_resolution_clock::time_point endT = chrono::high_resolution_clock::now();
                 double timeTaken = chrono::duration_cast<chrono::microseconds>(endT-startT).count() ;
-                if(*continue_exec){
+                if(cont_exec){
                     tts.push_back(timeTaken);
                     if (max_times[thread_num] < timeTaken){
                         max_times[thread_num] = timeTaken;
@@ -764,20 +765,19 @@ int main(int argc, char** argv) {
     
     double * max_times = new double[num_of_threads];
     double * avg_times = new double[num_of_threads];
-    bool *continue_exec = new bool(true);
+    cont_exec.store(true);
     //cout << "End snap Enode " << end_snap_Enode << endl;
     //cout << "Marked End snap Enode " << (Snap_Enode *)get_marked_ref((long) end_snap_Enode) << endl;
     //cout << "End snap Vnode " << end_snap_Vnode << endl;
     //cout << "Marked End snap Vnode " << (Snap_Vnode*) get_marked_ref((long)end_snap_Vnode) << endl;
     for( int i=0;i < num_of_threads ;i++){
 
-        t_args[i].continue_exec = continue_exec;
         
         t_args[i].logfilename = logFileName;
         t_args[i].graph = graph;
         t_args[i].debug = debug;
         t_args[i].thread_num = i;
-        t_args[i].max_nodes = 2 * initial_vertices;
+        t_args[i].max_nodes = 10 * initial_vertices;
         t_args[i].max_threads = num_of_threads;
         t_args[i].debug = debug;
         t_args[i].max_times = max_times;
@@ -787,7 +787,7 @@ int main(int argc, char** argv) {
         
     }
     sleep(test_duration);
-    *continue_exec = false;
+    cont_exec.store(false);
     for(int i=0 ; i< num_of_threads;i++){
         pthread_join(threads[i], NULL);
     }

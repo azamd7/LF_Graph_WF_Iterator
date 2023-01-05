@@ -545,6 +545,9 @@ void print_graph_init(fstream *logfile , Vnode * graph_headv){
     //(*logfile) << "Tail" << endl;
     //(*logfile) << "Graph(End)-------" << endl;
 }
+
+atomic<bool> continue_exec;
+
 /**
  * @brief paramteter that are to be passed on to the threads
  * 
@@ -555,9 +558,8 @@ struct thread_args{
     int thread_num;
     bool debug ;  
     int max_nodes;
-    bool * continue_exec; 
     int max_threads;
-    int * ops;
+    double * ops;
     
     vector<double> * dist_prob;
     
@@ -588,9 +590,7 @@ void *thread_funct(void * t_args){
     int max_nodes = ((struct thread_args *)t_args)->max_nodes;
     int max_threads = ((struct thread_args *)t_args)->max_threads;
     //int prob_arr[4] = ((struct thread_args *)t_args)->prob_arr;
-    int * ops = ((struct thread_args *)t_args)->ops;
-    bool *continue_exec = ((struct thread_args *)t_args)->continue_exec;
-    bool test_duration = ((struct thread_args *)t_args)->continue_exec;
+    double * ops = ((struct thread_args *)t_args)->ops;
     
     vector<double> * dist_prob = ((struct thread_args *)t_args)->dist_prob;
 
@@ -604,7 +604,7 @@ void *thread_funct(void * t_args){
     random_device rd;
     mt19937 gen(rd());
     discrete_distribution<> d(dist_prob->begin() , dist_prob->end());
-    while(*continue_exec){
+    while(continue_exec){
        
      
         int op_index = d(gen);
@@ -615,7 +615,7 @@ void *thread_funct(void * t_args){
                 if(debug) 
                     logfile_th << " thread id : " << thread_num << "Add vertex  : " << rand_node_id << endl;
                 graph->AddVertex(rand_node_id,thread_num,&logfile_th,debug );
-                if(*continue_exec)
+                if(continue_exec)
                     ops[thread_num]++;
             }
             break;
@@ -626,7 +626,7 @@ void *thread_funct(void * t_args){
                 if(debug)
                     logfile_th << " thread id : " << thread_num << "Delete vertex : " << rand_node_id << endl;
                 graph->RemoveVertex(rand_node_id,thread_num,&logfile_th, debug);
-                if(*continue_exec)
+                if(continue_exec)
                     ops[thread_num]++;
             }
             break;
@@ -641,7 +641,7 @@ void *thread_funct(void * t_args){
                 if(debug)   
                     logfile_th << " thread id : " << thread_num << "Add edge : " << rand_source << " " << rand_dest << endl;
                 graph->AddEdge(rand_source , rand_dest , thread_num,&logfile_th,debug);
-                if(*continue_exec)
+                if(continue_exec)
                     ops[thread_num]++;
             }
             break;
@@ -655,7 +655,7 @@ void *thread_funct(void * t_args){
                 if(debug)
                     logfile_th << " thread id : " << thread_num << " Delete edge : " << rand_source << " " << rand_dest  << endl;
                 graph->RemoveE(rand_source , rand_dest , thread_num,&logfile_th,debug);
-                if(*continue_exec)
+                if(continue_exec)
                     ops[thread_num]++;
             }
             break;
@@ -669,7 +669,7 @@ void *thread_funct(void * t_args){
                 if(debug)
                     logfile_th << " thread id : " << thread_num << " Contians Edge : " << rand_source << " " << rand_dest  << endl;
                 graph->ContainsE(rand_source , rand_dest , thread_num,&logfile_th,debug);
-                if(*continue_exec)
+                if(continue_exec)
                     ops[thread_num]++;
             }
             break;
@@ -680,7 +680,7 @@ void *thread_funct(void * t_args){
                 if(debug)
                     logfile_th << " thread id : " << thread_num << " Contains vertex : " << node_id  << endl;
                 graph->ContainsV(node_id , thread_num,&logfile_th,debug);
-                if(*continue_exec)
+                if(continue_exec)
                     ops[thread_num]++;
             }
         break;
@@ -690,7 +690,7 @@ void *thread_funct(void * t_args){
                 logfile_th << " thread id : " << thread_num << " Collecting snapshot"  << endl;
                 //print_graph(&logfile_th , graph->head);
                 SnapCollector * sc =  takeSnapshot(graph->head , max_threads, &logfile_th,debug);
-                if(*continue_exec)
+                if(continue_exec)
                     ops[thread_num]++;
                 
                 if(debug){ 
@@ -932,16 +932,15 @@ int main(int argc, char** argv) {
     pthread_t threads[num_of_threads];
     
     //List of throughput from each thread
-    int * ops = new int[num_of_threads];
+    double * ops = new double[num_of_threads];
 
-    bool *continue_exec = new bool(true);
+    continue_exec.store(true);
     //cout << "End snap Enode " << end_snap_Enode << endl;
     //cout << "Marked End snap Enode " << (Snap_Enode *)get_marked_ref((long) end_snap_Enode) << endl;
     //cout << "End snap Vnode " << end_snap_Vnode << endl;
     //cout << "Marked End snap Vnode " << (Snap_Vnode*) get_marked_ref((long)end_snap_Vnode) << endl;
     for( int i=0;i < num_of_threads ;i++){
 
-        t_args[i].continue_exec = continue_exec;
         
         t_args[i].logfilename = logFileName;
         t_args[i].graph = graph;
@@ -957,13 +956,13 @@ int main(int argc, char** argv) {
         
     }
     sleep(test_duration);
-    *continue_exec = false;
+    continue_exec.store(false);
     for(int i=0 ; i< num_of_threads;i++){
         pthread_join(threads[i], NULL);
     }
 
     double max_cnt = 0;
-    long tot_cnt = 0;
+    double tot_cnt = 0;
     double avg_cnt = 0;
     for( int i = 0;i < num_of_threads ; i++){
         //check max
@@ -974,7 +973,7 @@ int main(int argc, char** argv) {
         tot_cnt += ops[i];
     }
     avg_cnt = tot_cnt * 1.0 /( num_of_threads * test_duration);
-    max_cnt = max_cnt * 1.0 /( num_of_threads * test_duration);
+    max_cnt = max_cnt * 1.0 /( test_duration);
 
     opfile << "Avg  : " << avg_cnt <<fixed << endl;
     opfile << "Max  : " << max_cnt <<fixed << endl;
@@ -986,7 +985,7 @@ int main(int argc, char** argv) {
     delete end_Vnode;
     delete end_snap_Enode;
     delete end_snap_Vnode;
-
+    opfile.close();
     return 0;
 }
 
