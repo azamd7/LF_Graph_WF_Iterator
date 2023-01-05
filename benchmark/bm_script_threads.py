@@ -14,7 +14,7 @@ date_time_obj =now.strftime('%H_%M_%S')
 
 threads = [13,26,52,78,102] 
 #threads = [4,8]
-algos = ["icdcn_resp" , "report_resp" , "icdcn_tp" , "report_tp" ]
+algos = [ "icdcn_tp" , "report_tp" ]
 debug = False
 main_file = "main.cpp"
 iterations = 7
@@ -49,7 +49,7 @@ with open(script_log_file, 'w+') as log_f_object:
     for key in dist_probs.keys(): 
         print("\n\n\n\n\n\nProbablity Dist: "+ key +" " + str( dist_probs[key])  ,file = log_f_object,flush = True)
         dist_prob = dist_probs[key].copy()
-        for i in range(0,1,2):
+        for i in range(0,1,11):
             print("\n\nSnapshot Dist: "+str(i)  ,file = log_f_object,flush = True)
             if(i != 0):
                 dist_prob[6] = i
