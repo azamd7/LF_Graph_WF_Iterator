@@ -47,14 +47,16 @@ cmd2 = "../sources/{0}/a.out ../log/{1} {2} {3} {4} {5}"
 
 dist_probs ={ 
             #"loopup_int" : [3,2,3,2,45,45,0],
-            "update_int" : [13,12,13,12,25,25,0]
+            #"update_int" : [13,12,13,12,25,25,0]
+            "update_int_2" : [16,9,16,9,25,25,0],
+            "lookup_int_2" : [4,1,4,1,45,45,0]
             }
 
 with open(script_log_file, 'w+') as log_f_object:
     for key in dist_probs.keys(): 
         print("\n\n\n\n\n\nProbablity Dist: "+ key +" " + str( dist_probs[key])  ,file = log_f_object,flush = True)
         dist_prob = dist_probs[key].copy()
-        for i in range(2,11,2):
+        for i in range(0,11,2):
             print("\n\nSnapshot Dist: "+str(i)  ,file = log_f_object,flush = True)
             if(i != 0):
                 dist_prob[6] = i
