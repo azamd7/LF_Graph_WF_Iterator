@@ -450,6 +450,7 @@ class GraphList {
                 reportEdge(newe , u , tid , 2, logfile,debug);// 
                 return 3;
             }
+            delete newe;
         } // End of while
     }
 
@@ -706,8 +707,8 @@ int main(int argc, char** argv) {
     //will be used in script
     int num_of_threads = 5;
     int test_duration = 10;
-    int initial_vertices = (int)pow(10 , 6);
-    int initial_edges = 2 * (int)pow(10, 6);
+    int initial_vertices = (int)pow(10 , 4);
+    int initial_edges = 2 * (int)pow(10, 4);
  
     bool debug = false;
     vector<double> dist_prob = {1,1,1,1,1,1,1};

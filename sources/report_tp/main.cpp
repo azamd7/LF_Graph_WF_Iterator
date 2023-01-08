@@ -465,6 +465,7 @@ class GraphList {
                 reportEdge(newe , u , tid , 2, logfile,debug);// 
                 return 3;
             }
+            delete newe;
         } // End of while
     }
 

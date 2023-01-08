@@ -330,6 +330,7 @@ int main(int argc, char*argv[])
     }
 
     avg_time = avg_time / num_of_threads;
+    
 
 
     cout << avg_time << fixed << endl;
