@@ -48,8 +48,9 @@ dist_probs ={
 with open(script_log_file, 'w+') as log_f_object:
     for key in dist_probs.keys(): 
         print("\n\n\n\n\n\nProbablity Dist: "+ key +" " + str( dist_probs[key])  ,file = log_f_object,flush = True)
-        dist_prob = dist_probs[key].copy()
+        
         for i in range(2,11,2):
+            dist_prob = dist_probs[key].copy()
             print("\n\nSnapshot Dist: "+str(i)  ,file = log_f_object,flush = True)
             if(i != 0):
                 dist_prob[6] = i

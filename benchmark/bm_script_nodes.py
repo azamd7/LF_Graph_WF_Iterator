@@ -16,14 +16,15 @@ threads = 52
 #######
 #threads = 8
 #######
-algos = ["icdcn_tp" , "report_tp" ]
+algos = [ "report_tt_ss" ]
+
 debug = False
 main_file = "main.cpp"
 iterations = 7
 test_duration = "10" #no of sec before stop executions
 init_vertices = [10**4 * i for i in range(1,7)]
 #######
-#init_vertices = [10**4 * i for i in range(1,3)]
+#init_vertices = [10**4 * i for i in range(4,7)]
 #######
 init_edges = [2 * i for i in init_vertices]
 
@@ -49,14 +50,15 @@ dist_probs ={
             #"loopup_int" : [3,2,3,2,45,45,0],
             #"update_int" : [13,12,13,12,25,25,0]
             "update_int_2" : [16,9,16,9,25,25,0],
-            "lookup_int_2" : [4,1,4,1,45,45,0]
+-            "lookup_int_2" : [4,1,4,1,45,45,0]
             }
 
 with open(script_log_file, 'w+') as log_f_object:
     for key in dist_probs.keys(): 
         print("\n\n\n\n\n\nProbablity Dist: "+ key +" " + str( dist_probs[key])  ,file = log_f_object,flush = True)
-        dist_prob = dist_probs[key].copy()
+        
         for i in range(0,11,2):
+            dist_prob = dist_probs[key].copy()
             print("\n\nSnapshot Dist: "+str(i)  ,file = log_f_object,flush = True)
             if(i != 0):
                 dist_prob[6] = i
