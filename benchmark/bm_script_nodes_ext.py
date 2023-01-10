@@ -16,7 +16,7 @@ threads = 52
 #######
 #threads = 8
 #######
-algos = [ "report_tt_ss" ]
+algos = [ "report_tt_ss_ext" ]
 
 debug = False
 main_file = "main.cpp"
@@ -130,9 +130,9 @@ with open(script_log_file, 'w+') as log_f_object:
                                 print(std_output)
                                 if std_err is not None:
                                     raise Exception(std_err)
-                                avg_time , max_time = "",""
+                                avg_time , max_time , avg_nodes = "","",""
                                 if len(std_output.decode().split()) > 1:
-                                    avg_time, max_time, _ = std_output.decode().split('\n')
+                                    avg_time, max_time, avg_nodes, _ = std_output.decode().split('\n')
                                 if not avg_time:
                                     lst.append("")#empty for that thread
                                     print("No o/p for init node cnt : " + str(init_node_cnt) + " and  Iteration :  " + str(i),file = log_f_object,flush = True)
@@ -146,6 +146,7 @@ with open(script_log_file, 'w+') as log_f_object:
                                     continue
                                 print("Max Snapshot : " + str(max_time),file = log_f_object,flush = True)
                                 max_time_taken_list.append(float(max_time))
+                                print("Average Nodes in snapshots : " + str(avg_nodes),file = log_f_object,flush = True)
                                 print("\n",file= log_f_object,flush = True)
                                 print(file= log_f_object,flush = True)
                                 print(file= log_f_object,flush = True)
