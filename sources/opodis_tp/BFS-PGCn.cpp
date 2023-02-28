@@ -936,6 +936,8 @@ char* GetBFS(int key, int tid){
   else if(status == false)  { napp++; 
                 FreeBFSGraph(BFSHead);
           return (char*)"FALSE"; }// 
+
+    return nullptr;
           
 }
 
@@ -1105,7 +1107,24 @@ void PrintHash2(){
  
 };  
 
-class SnapENode;
+class SnapVNode;
+
+class SnapENode{
+    public:
+    int key;
+    SnapVNode * pointv; // pointer to its vertex
+	SnapENode * enext; // pointer to the next ENode
+    struct ENode * e_ptr; //pointer to the original graph enode
+
+    SnapENode(){
+
+    }
+    SnapENode(int key, SnapENode * enext , struct ENode * e_ptr){
+        this->key = key;
+        this->enext = enext;
+        this->e_ptr = e_ptr;
+    }
+};
 class SnapVNode{
     public:
     int key;
@@ -1120,26 +1139,14 @@ class SnapVNode{
         this->key = key;
         this->vnext = vnext;
         this->v_ptr = v_ptr;
-        SnapENode * etail = new SnapENode(INT_MAX , NULL , NULL);
+        SnapENode * etail = new SnapENode(INT_MAX , NULL , nullptr);
         SnapENode * ehead = new SnapENode(INT_MIN , etail , NULL);
         this->enext = ehead;
         this->ecnt = v_ptr->ecount;//we need to compare edge count between 2 snap node
     }
 };
 
-class SnapENode{
-    public:
-    int key;
-    SnapVNode * pointv; // pointer to its vertex
-	SnapENode * enext; // pointer to the next ENode
-    struct ENode * e_ptr; //pointer to the original graph enode
 
-    SnapENode(int key, SnapENode * enext , struct ENode * e_ptr){
-        this->key = key;
-        this->enext = enext;
-        this->e_ptr = e_ptr;
-    }
-};
 
 class SnapFSet{
   public:
@@ -1223,8 +1230,8 @@ class SnapGraph{
    t->pred = NULL;
   }
   
- void freeHNode(SnapHNode *t){
-  SnapHNode  *head = t;
+ void freeHNode(){
+  SnapHNode  *head = this->Head->next;
   SnapVNode *bkt, *bktnext;
     for(long i=0; i<head->size; i++){
       bkt = head->buckets[i].head;
@@ -1303,31 +1310,33 @@ bool compare_ss_collect(SnapGraph * g1 , SnapGraph *g2){
         //for each bucket check nodes then thier edges
         SnapVNode * vnode1 = buckets1[i].head->vnext;
         SnapVNode * vnode2 = buckets2[i].head->vnext;
-        if(vnode1->key == INT_MAX || vnode2->key == INT_MAX){
-            return false;
-        }
+        
         while(vnode1->key != INT_MAX && vnode2->key != INT_MAX){
             //verify if vnode is same
             if(vnode1->v_ptr != vnode2->v_ptr || vnode1->ecnt != vnode2->ecnt)
+            {
                 return false;
-
+            }
 
             //check edges of the vertex
             SnapENode * enode1 = vnode1->enext->enext;
             SnapENode * enode2 = vnode2->enext->enext;
-            if(enode1->key == INT_MAX && enode2->key == INT_MAX){
-                return false;
-            }
-
+            
             while(enode1->key != INT_MAX && enode2->key != INT_MAX){
-                if(enode1->e_ptr != enode2->e_ptr )
+                if(enode1->e_ptr != enode2->e_ptr ){
                     return false;
+                }
+                
+                enode1 = enode1->enext;
+                enode2 = enode2->enext;
             }
-            if(enode1->key != INT_MAX )
+            if(enode1->key != INT_MAX ){
                 return false;
+            }
             if(enode2->key != INT_MAX )
+            {
                 return false;
-
+            }
             vnode1 = vnode1->vnext;
             vnode2 = vnode2->vnext;
 
@@ -1339,6 +1348,7 @@ bool compare_ss_collect(SnapGraph * g1 , SnapGraph *g2){
             return false;
 
     }
+    
     return true;
 
 

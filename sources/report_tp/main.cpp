@@ -524,7 +524,7 @@ void print_graph_init(fstream *logfile , Vnode * graph_headv){
         if(is_marked){
             val = "!" + val;
         }
-        (*logfile) << val ;
+        //(*logfile) << val ;
 
         Enode *enode = vnode->ehead.load()->enext;
         while(enode != end_Enode){
@@ -533,12 +533,10 @@ void print_graph_init(fstream *logfile , Vnode * graph_headv){
             if (e_is_marked){
                 e_val = "!" + e_val;
             }
-            e_val = " " + e_val ;
-            (*logfile) << e_val ;
+            (*logfile) << val <<" " << e_val << endl ;
             enode = enode -> enext;
             
         }
-        (*logfile) << endl;
         //(*logfile) << "|" <<endl;
         vnode = vnode->vnext;
 
@@ -922,10 +920,10 @@ int main(int argc, char** argv) {
     //for(int i=0 ; i< max_threads;i++){
     //    pthread_join(thds[i], NULL);
     //}
-    //print_graph_init(&opfile , graph->head);
+    
 
     GraphList * graph = create_graph(initial_vertices ,initial_edges);
-
+    print_graph_init(&opfile , graph->head);
     
     //sc->print_snap_graph(&logfile);
     //printf(graph->ContainsE(5,4,1) != 2? "False\n" : "True\n");
