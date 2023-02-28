@@ -20,10 +20,11 @@ threads = 102
 algos = [ "icdcn_sleep_resp" , "report_sleep_resp" ]
 debug = False
 main_file = "main.cpp"
-iterations = 7
+iterations = 4
 test_duration = "10" #no of sec before stop executions
 init_vertices = str(10**4)
 init_edges = str(2 * (10**4))
+input_file = "../input/datasets/synth_10k_20k"
 
 #files
 maxt_output_file_fmt = '../output/{0}_op_' + date_time_obj +"_maxt_{1}" +  '.csv'
@@ -32,7 +33,7 @@ script_log_file = "../script_log/" + date_time_obj + ".txt"
 
 #commands
 cmd1 = "g++ -std=c++11 -pthread -O3 -o ../sources/{0}/a.out ../sources/{0}/" + main_file
-cmd2 = "../sources/{0}/a.out ../log/{1} {2} {3} {4} {5} {6} {7}"
+cmd2 = "../sources/{0}/a.out ../log/{1} {2} {3} {4} {5} {6} {7} {8}"
 
 
 # * 0->add vertex
@@ -109,7 +110,7 @@ with open(script_log_file, 'w+') as log_f_object:
                             if debug:
                                 cmd += " debug"
                             print("Algo : "+ algo,file = log_f_object,flush = True)
-                            cmd = cmd.format(algo,date_time_obj,str(threads),test_duration,init_vertices,init_edges,sleep_threads ,sleep_time)
+                            cmd = cmd.format(algo,date_time_obj,str(threads),test_duration,init_vertices,init_edges,input_file,sleep_threads ,sleep_time)
                             avg_time_taken_list = []
                             max_time_taken_list = []
 
@@ -145,13 +146,13 @@ with open(script_log_file, 'w+') as log_f_object:
                                 
                             avg_time_taken_mean = 0
                             if len(avg_time_taken_list)!=0:
-                                if(len(avg_time_taken_list)) > 5:
+                                if(len(avg_time_taken_list)) > 1:
                                     avg_time_taken_list = avg_time_taken_list[2:]
                                 avg_time_taken_mean = int(sum(avg_time_taken_list)/len(avg_time_taken_list))
                             avg_lst.append(avg_time_taken_mean)
                             max_time_taken_mean = 0
                             if len(avg_time_taken_list)!=0:
-                                if(len(max_time_taken_list)) > 5:
+                                if(len(max_time_taken_list)) > 1:
                                     max_time_taken_list = max_time_taken_list[2:]
                                 max_time_taken_mean = int(sum(max_time_taken_list)/len(max_time_taken_list))
                             max_lst.append(max_time_taken_mean)

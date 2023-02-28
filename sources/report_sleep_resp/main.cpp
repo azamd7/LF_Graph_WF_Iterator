@@ -756,7 +756,7 @@ GraphList * create_graph(int init_vertices , int init_edges){
     return graph;
 }
 
-GraphList * create_graph_from_file(string file, int NT, int tid){
+GraphList * create_graph_from_file(string file){
     GraphList * graph = new GraphList();
     ifstream cinn(file);
     long n,m;
@@ -773,6 +773,7 @@ GraphList * create_graph_from_file(string file, int NT, int tid){
         graph->AddEdge(u,v , -1 , nullptr , false);
 	    e++;
       }   
+    return graph;
   //cout<<"Edge:"<<e<<endl;
 } 
 
@@ -836,7 +837,8 @@ int main(int argc, char** argv) {
     opfile << dist_prob[0] << " " << dist_prob[1] << " " << dist_prob[2] << " " << dist_prob[3] << " " << dist_prob[4]  << endl;
     opfile << debug << endl;
 
-    GraphList * graph = create_graph(initial_vertices ,initial_edges);
+    //GraphList * graph = create_graph(initial_vertices ,initial_edges);
+    GraphList * graph = create_graph_from_file(argv[6]);
     
 
 
