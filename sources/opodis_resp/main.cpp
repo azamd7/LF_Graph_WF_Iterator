@@ -242,17 +242,35 @@ void* pthread_call(void* t)
                 l:	v = rand() % (vertexID)+ 1;		
                 if(v == 0)
                     goto l;
-               G1.insert(v, NTHREADS, threadnum);
-               
+                chrono::high_resolution_clock::time_point startT = chrono::high_resolution_clock::now();
+                G1.insert(v, NTHREADS, threadnum);
+                chrono::high_resolution_clock::time_point endT = chrono::high_resolution_clock::now();
+                double timeTaken = chrono::duration_cast<chrono::microseconds>(endT-startT).count() ;
+                
+                if(cont_exec){
+                    tts.push_back(timeTaken);
+                    if (max_times[threadnum] < timeTaken){
+                        max_times[threadnum] = timeTaken;
+                    }
+                }
                 break;
             }
             case 1:
             {
-                l2:	v = rand() % (vertexID)+1;		
+                l2:	v = rand() % (vertexID)+1;	
+                chrono::high_resolution_clock::time_point startT = chrono::high_resolution_clock::now();  	
                 if(v == 0)
                     goto l2;
                 G1.remove(v, NTHREADS, threadnum);
+                chrono::high_resolution_clock::time_point endT = chrono::high_resolution_clock::now();
+                double timeTaken = chrono::duration_cast<chrono::microseconds>(endT-startT).count() ;
                 
+                if(cont_exec){
+                    tts.push_back(timeTaken);
+                    if (max_times[threadnum] < timeTaken){
+                        max_times[threadnum] = timeTaken;
+                    }
+                }
                 break;			
             }
 
@@ -263,9 +281,18 @@ void* pthread_call(void* t)
                 v = (rand() % (vertexID))+1;
                 if(u == v || u == 0 || v == 0)	
                     goto l4;
-
-                G1.PutE(u,v, threadnum);
                 
+                chrono::high_resolution_clock::time_point startT = chrono::high_resolution_clock::now();    
+                G1.PutE(u,v, threadnum);
+                chrono::high_resolution_clock::time_point endT = chrono::high_resolution_clock::now();
+                double timeTaken = chrono::duration_cast<chrono::microseconds>(endT-startT).count() ;
+                
+                if(cont_exec){
+                    tts.push_back(timeTaken);
+                    if (max_times[threadnum] < timeTaken){
+                        max_times[threadnum] = timeTaken;
+                    }
+                }
                 break;			
             }
                
@@ -273,12 +300,21 @@ void* pthread_call(void* t)
             {
             l3:	u = (rand() % (vertexID))+1;		
                 v = (rand() % (vertexID))+1;
+
                 if(u == v || u == 0 || v == 0)	
                     goto l3;
 
-            
+                chrono::high_resolution_clock::time_point startT = chrono::high_resolution_clock::now(); 
                 G1.RemoveE(u,v, threadnum);
-               
+                chrono::high_resolution_clock::time_point endT = chrono::high_resolution_clock::now();
+                double timeTaken = chrono::duration_cast<chrono::microseconds>(endT-startT).count() ;
+                
+                if(cont_exec){
+                    tts.push_back(timeTaken);
+                    if (max_times[threadnum] < timeTaken){
+                        max_times[threadnum] = timeTaken;
+                    }
+                }
                 break;	
             }
             case 4:
@@ -287,16 +323,34 @@ void* pthread_call(void* t)
                 v = (rand() % (vertexID))+1;
                 if(u == v || u == 0 || v == 0)	
                     goto l5;
+                chrono::high_resolution_clock::time_point startT = chrono::high_resolution_clock::now(); 
                 G1.GetE(u, v);
+                chrono::high_resolution_clock::time_point endT = chrono::high_resolution_clock::now();
+                double timeTaken = chrono::duration_cast<chrono::microseconds>(endT-startT).count() ;
                 
+                if(cont_exec){
+                    tts.push_back(timeTaken);
+                    if (max_times[threadnum] < timeTaken){
+                        max_times[threadnum] = timeTaken;
+                    }
+                }
                 break;
             }
 
             case 5:
             {
                 v = (rand() % (vertexID))+1;
+                chrono::high_resolution_clock::time_point startT = chrono::high_resolution_clock::now();
                 G1.contains(v);
+                chrono::high_resolution_clock::time_point endT = chrono::high_resolution_clock::now();
+                double timeTaken = chrono::duration_cast<chrono::microseconds>(endT-startT).count() ;
                 
+                if(cont_exec){
+                    tts.push_back(timeTaken);
+                    if (max_times[threadnum] < timeTaken){
+                        max_times[threadnum] = timeTaken;
+                    }
+                }
                 break;
             }
           
@@ -327,7 +381,6 @@ void* pthread_call(void* t)
             }
         }
 	}
-
     if(tts.size() > 0){
         double total_tts = 0;
         for(double tt : tts){
@@ -336,6 +389,7 @@ void* pthread_call(void* t)
         avg_times[threadnum] = total_tts / tts.size();
 
     }
+
     return nullptr; 		
 }
 
@@ -391,7 +445,7 @@ void* pthread_callwp(void* t)
 int main(int argc, char*argv[]) 
 {
         Hash sg;
-        vector<double> dist_prob = {1,1,1,1,1,1,0};
+        vector<double> dist_prob = {1,1,1,1,1,1,1};
         int i;
         if(argc < 3)
         {
@@ -458,11 +512,12 @@ int main(int argc, char*argv[])
     }
     sleep(test_duration);
     cont_exec.store(false);
+
+    
     for (i = 0; i < NTHREADS; i++)
     {
             pthread_join(thr[i], NULL);
     }
-
     double max_time = 0;
     double avg_time = 0;
 

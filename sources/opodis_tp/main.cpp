@@ -284,8 +284,10 @@ void* pthread_call(void* t)
             }
             case 4:
             {
-                u = (rand() % (vertexID))+1;
+            l5: u = (rand() % (vertexID))+1;
                 v = (rand() % (vertexID))+1;
+                if(u == v || u == 0 || v == 0)	
+                    goto l5;
                 G1.GetE(u, v);
                 if(cont_exec)
                     ops[threadnum]++;
@@ -438,6 +440,11 @@ int main(int argc, char*argv[])
     }
     sleep(test_duration);
     cont_exec.store(false);
+
+    for (i = 0; i < NTHREADS; i++)
+    {
+            pthread_join(thr[i], NULL);
+    }
     double max_cnt = 0;
     double tot_cnt = 0;
     double avg_cnt = 0;
