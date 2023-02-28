@@ -17,7 +17,7 @@ threads = [13,26,52,78,102]
 algos = [ "opodis_tp" ]
 debug = False
 main_file = "main.cpp"
-iterations = 3
+iterations = 4
 test_duration = "10" #no of sec before stop executions
 init_vertices = str(10**4)
 init_edges = str(2 * (10**4))
@@ -144,13 +144,13 @@ with open(script_log_file, 'w+') as log_f_object:
                             avg_time_taken_mean = 0
                             if len(avg_time_taken_list)!=0:
                                 if(len(avg_time_taken_list)) > 1:
-                                    avg_time_taken_list = avg_time_taken_list[1:]
+                                    avg_time_taken_list = avg_time_taken_list[2:]
                                 avg_time_taken_mean = int(sum(avg_time_taken_list)/len(avg_time_taken_list))
                             avg_lst.append(avg_time_taken_mean)
                             max_time_taken_mean = 0
                             if len(avg_time_taken_list)!=0:
                                 if(len(max_time_taken_list)) > 1:
-                                    max_time_taken_list = max_time_taken_list[1:]
+                                    max_time_taken_list = max_time_taken_list[2:]
                                 max_time_taken_mean = int(sum(max_time_taken_list)/len(max_time_taken_list))
                             max_lst.append(max_time_taken_mean)
                             print()
