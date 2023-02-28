@@ -44,6 +44,7 @@
 #include <unistd.h>
 #include <chrono>
 #include <thread>
+#include <set>
 
 #define vntp "VERTEX NOT PRESENT"
 #define entp "EDGE NOT PRESENT"
@@ -586,6 +587,27 @@ bool compare_snapshot(snap_vlist *snap1_head, snap_vlist *snap2_head){
        
       } 
  }
+ void initGraphFromFile(string file, int NT, int tid){
+  ifstream cinn(file);
+  long n,m;
+  int u, v, v_;
+  cinn>>n>>m;
+  //cout<<n<<" "<<m<<endl;
+  
+  int i,j, e=0;
+  //cin>>i;
+  for(i=1;i<=n;i++){
+        //v_ = rand()%n;
+        AddV(i, NT);
+   }
+   //cout<<
+  for(j=1; j<=m; j = j+1){
+	cinn>>u>>v;
+    AddE(u,v);
+	e++;
+      }   
+  //cout<<"Edge:"<<e<<endl;
+} 
 
 // create BFSNode
 bfslist_t* createBFSNode(int ecount, vlist_t *n, bfslist_t *p, bfslist_t *next){

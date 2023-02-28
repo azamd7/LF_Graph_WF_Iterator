@@ -788,7 +788,7 @@ void initGraphFromFile(string file, int NT, int tid){
   
   int i,j, e=0;
   //cin>>i;
-  for(i=1;i<=2*n;i++){
+  for(i=1;i<=2 *n;i++){
         //v_ = rand()%n;
         insertinit(i,NT, tid);
    }

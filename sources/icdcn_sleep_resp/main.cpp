@@ -257,6 +257,8 @@ void* pthread_call(void* t)
     return nullptr; 		
 }
 
+
+
 int main(int argc, char*argv[])	
 {
 	slist sg;
@@ -277,12 +279,12 @@ int main(int argc, char*argv[])
         initial_vertices = stoi(argv[4]);
         initial_edges = stoi(argv[5]);
          //sleep threads and sleep time
-        sleep_threads = stoi(argv[6]);
-        sleep_time = stoi(argv[7]);
-        if(argc > 7){
+        sleep_threads = stoi(argv[7]);
+        sleep_time = stoi(argv[8]);
+        if(argc > 8){
             //read dist probabilities
             for(int i = 0;i< 7 ; i++){
-                dist_prob[i] = stoi(argv[8+i]);
+                dist_prob[i] = stoi(argv[9+i]);
             }
             
         }
@@ -291,8 +293,9 @@ int main(int argc, char*argv[])
 	NTHREADS = num_of_threads;
 	seconds = test_duration;		
 	vertexID.store(10*initial_vertices);	
-        sg.init();
-	sg.initGraph(initial_vertices, initial_edges, NTHREADS);
+    sg.init();
+	//sg.initGraph(initial_vertices, initial_edges, NTHREADS);
+    sg.initGraphFromFile(argv[6],NTHREADS,1); // load graph from file
     //cout << "graph created" << endl;
 
         pthread_t *thr = new pthread_t[NTHREADS];
@@ -305,12 +308,23 @@ int main(int argc, char*argv[])
     int *ops = new int[NTHREADS];
 	//cout << "timer started . . ." << endl;
     cont_exec.store(true);
+    set<int> sleep_thread_nums;
+    srand(time(0));
+    while(sleep_thread_nums.size() == sleep_threads){
+        int thread_num = rand() % num_of_threads;
+        sleep_thread_nums.insert(thread_num);
+    }
 
     double * max_times = new double[NTHREADS];
     double * avg_times = new double[NTHREADS];
 
 	for (i=0;i < NTHREADS;i++)
     {
+        int thrd_sleep_time = 0;
+        if(sleep_thread_nums.find(i) != sleep_thread_nums.end()){
+            thrd_sleep_time = sleep_time;
+        }
+
         tinfo *t =(tinfo*) malloc(sizeof(tinfo));
         t->tid = i;
         t->G = sg;
@@ -319,6 +333,7 @@ int main(int argc, char*argv[])
         t->dist_prob = &dist_prob;
         t->max_times = max_times;
         t->avg_times = avg_times;
+        t->sleep_time = sleep_time;
         pthread_create(&thr[i], &attr, pthread_call, (void*)t);
     }
     sleep(seconds);

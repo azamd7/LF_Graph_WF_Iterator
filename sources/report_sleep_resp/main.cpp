@@ -756,6 +756,26 @@ GraphList * create_graph(int init_vertices , int init_edges){
     return graph;
 }
 
+GraphList * create_graph_from_file(string file, int NT, int tid){
+    GraphList * graph = new GraphList();
+    ifstream cinn(file);
+    long n,m;
+    int u, v, v_;
+    cinn>>n>>m;
+  
+    int i,j, e=0;
+
+    for(i=1;i<=2*n;i++){
+        graph->AddVertex(i , -1 , nullptr , false);
+    }
+    for(j=1; j<=m; j = j+1){
+	    cinn>>u>>v;
+        graph->AddEdge(u,v , -1 , nullptr , false);
+	    e++;
+      }   
+  //cout<<"Edge:"<<e<<endl;
+} 
+
 
 // class GRAPH;
 
@@ -784,13 +804,13 @@ int main(int argc, char** argv) {
         initial_vertices = stoi(argv[4]);
         initial_edges = stoi(argv[5]);
         //sleep threads and sleep time
-        sleep_threads = stoi(argv[6]);
-        sleep_time = stoi(argv[7]);
+        sleep_threads = stoi(argv[7]);
+        sleep_time = stoi(argv[8]);
 
-        if(argc > 9){
+        if(argc > 10){
             //read dist probabilities
             for(int i = 0;i< 7 ; i++){
-                dist_prob[i] = stoi(argv[8+i]);
+                dist_prob[i] = stoi(argv[9+i]);
             }
             
         }
@@ -798,8 +818,8 @@ int main(int argc, char** argv) {
         
         
 
-        if(argc == 16){
-            if(argv[15] == "debug"){
+        if(argc == 17){
+            if(argv[16] == "debug"){
             	debug = true;
        		}
         }
