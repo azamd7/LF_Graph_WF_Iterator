@@ -68,6 +68,8 @@ typedef struct infothread{
   double * ops; //operations completed by each thread
   vector<double> * dist_prob;//distribution prob
   Hash G;
+  double * max_times;
+  double * avg_times;
 }tinfo;
 
 long n,m;
@@ -214,7 +216,8 @@ void* pthread_call(void* t)
     long Tid = ti->tid;
     Hash G1=ti->G;
     int threadnum = ti->tid;
-
+    double * avg_times = ti->avg_times;
+    double * max_times = ti->max_times;
     int core_id = ti->core_id;
     const pthread_t pid = pthread_self();
     cpu_set_t cpuset;
@@ -223,7 +226,7 @@ void* pthread_call(void* t)
     int rc = pthread_setaffinity_np(pid,sizeof(cpu_set_t), &cpuset);
     double * ops = ti->ops;
     vector<double> * dist_prob = ti->dist_prob;
-        
+    vector<double> tts;  
 	int u, v;;
     random_device rd;
     mt19937 gen(rd());
@@ -240,8 +243,7 @@ void* pthread_call(void* t)
                 if(v == 0)
                     goto l;
                G1.insert(v, NTHREADS, threadnum);
-                if(cont_exec)
-                    ops[threadnum]++;
+               
                 break;
             }
             case 1:
@@ -250,8 +252,7 @@ void* pthread_call(void* t)
                 if(v == 0)
                     goto l2;
                 G1.remove(v, NTHREADS, threadnum);
-                if(cont_exec)
-                    ops[threadnum]++;
+                
                 break;			
             }
 
@@ -264,8 +265,7 @@ void* pthread_call(void* t)
                     goto l4;
 
                 G1.PutE(u,v, threadnum);
-                if(cont_exec)
-                    ops[threadnum]++;
+                
                 break;			
             }
                
@@ -278,8 +278,7 @@ void* pthread_call(void* t)
 
             
                 G1.RemoveE(u,v, threadnum);
-                if(cont_exec)
-                    ops[threadnum]++;
+               
                 break;	
             }
             case 4:
@@ -287,8 +286,7 @@ void* pthread_call(void* t)
                 u = (rand() % (vertexID))+1;
                 v = (rand() % (vertexID))+1;
                 G1.GetE(u, v);
-                if(cont_exec)
-                    ops[threadnum]++;
+                
                 break;
             }
 
@@ -296,14 +294,14 @@ void* pthread_call(void* t)
             {
                 v = (rand() % (vertexID))+1;
                 G1.contains(v);
-                if(cont_exec)
-                    ops[threadnum]++;
+                
                 break;
             }
           
             case 6:
             {
                 //G1.GetBFS(v, threadnum);
+                chrono::high_resolution_clock::time_point startT = chrono::high_resolution_clock::now();
                 SnapGraph *ss1 = new SnapGraph();
                 ss1->collect_ss(G1.Head);
                 SnapGraph *ss2 = new SnapGraph();
@@ -314,14 +312,29 @@ void* pthread_call(void* t)
                     ss2 = new SnapGraph();
                     ss2->collect_ss(G1.Head); 
                 } 
-                if(cont_exec)
-                    ops[threadnum]++;
-                
+                chrono::high_resolution_clock::time_point endT = chrono::high_resolution_clock::now();
+                double timeTaken = chrono::duration_cast<chrono::microseconds>(endT-startT).count() ;
+                if(cont_exec){
+                    tts.push_back(timeTaken);
+                    if (max_times[threadnum] < timeTaken){
+                        max_times[threadnum] = timeTaken;
+                    }
+                }
                 ss1->freeHNode();
                 ss2->freeHNode();
             }
         }
 	}
+
+    if(tts.size() > 0){
+        cout << "ASDADsa" << endl;
+        double total_tts = 0;
+        for(double tt : tts){
+            total_tts += tt;
+        }
+        avg_times[threadnum] = total_tts / tts.size();
+
+    }
     return nullptr; 		
 }
 
@@ -377,7 +390,7 @@ void* pthread_callwp(void* t)
 int main(int argc, char*argv[]) 
 {
         Hash sg;
-        vector<double> dist_prob = {1,1,1,1,1,1,1};
+        vector<double> dist_prob = {1,1,1,1,1,1,0};
         int i;
         if(argc < 3)
         {
@@ -419,8 +432,12 @@ int main(int argc, char*argv[])
     opsapp = 0;
     gettimeofday(&tv1,NULL);
     double *ops = new double[NTHREADS];
+    double * max_times = new double[NTHREADS];
+    double * avg_times = new double[NTHREADS];
     cont_exec.store(true);
-        for (i=0;i < NTHREADS;i++)
+
+
+    for (i=0;i < NTHREADS;i++)
     {
             tinfo *t =(tinfo*) malloc(sizeof(tinfo));
             t->tid = i;
@@ -434,27 +451,29 @@ int main(int argc, char*argv[])
             t->cols = cols_size;
             t->dist_prob = &dist_prob;
             t->ops = ops;
+            t->max_times = max_times;
+            t->avg_times = avg_times;
             pthread_create(&thr[i], &attr, pthread_call, (void*)t);
     }
     sleep(test_duration);
     cont_exec.store(false);
-    double max_cnt = 0;
-    double tot_cnt = 0;
-    double avg_cnt = 0;
+    double max_time = 0;
+    double avg_time = 0;
 
     for( int i = 0;i < NTHREADS ; i++){
         //check max
-        if(max_cnt < ops[i]){
-            max_cnt = ops[i];
+        if(max_time < max_times[i]){
+            max_time = max_times[i];
         }
-        tot_cnt += ops[i];
+        avg_time += avg_times[i];
     }
-    //if(avg_cnt != 0.0f)
-    avg_cnt = tot_cnt * 1.0 / (test_duration);
-    max_cnt = max_cnt * 1.0 / (test_duration);
 
-    cout << avg_cnt << fixed << endl;
-    cout << max_cnt << fixed << endl;
+    avg_time = avg_time / NTHREADS;
+
+
+    cout << avg_time << fixed << endl;
+    cout << max_time << fixed << endl;
+
 
 	return 0;
     //   gettimeofday(&tv2,NULL);
