@@ -1387,13 +1387,14 @@ class SnapGraph{
 
   }
   /**
-     * @brief This method returns the number of shortest from source s to destination x excluding the vertex v. It also returns the count amoongst those shortes path that contains the v.
+     * @brief This method returns the shortest path from source s to other vertices
      * 
      */
-    void BC_from_source(SnapVNode *s , int v , int &path_cnt , int &path_cnt_with_v ,int tid ,fstream * logfile){
+    int max_dist_for_source(SnapVNode *s ,int tid ){
+        int max_dist = 0;
         int source_id = s->key;
-        s->path_cnt[tid] = 1;
         s->dist_from_source[tid] = 0;
+        s->visitedArray[tid] = source_id;
         queue <SnapVNode *> Q;
         Q.push(s);
 
@@ -1407,85 +1408,35 @@ class SnapGraph{
             eHead = pred_v->enext;
             //(*logfile) << "pred_v " << pred_v << " pred_v->v_path_cnt " << pred_v->v_path_cnt[0] << endl;
             //(*logfile) << "pred_v " << pred_v << " pred_v->path_cnt " << pred_v->path_cnt[0] << endl;
-            for(SnapENode * itNode = eHead->enext; itNode->key != INT_MAX; itNode = itNode ->enext){ 
+             for(SnapENode * itNode = eHead->enext; itNode->key != INT_MAX; itNode = itNode ->enext){ 
                 //cout << "In loop 2" << endl;
-                if(itNode->key == source_id)//dest is source node
-                    continue;
-                
+                int dist = pred_v_dist + 1;
                 SnapVNode* dest_v = itNode->pointv;
-                
-                if(itNode->key != v){//if its not the BC vertex
-                    //(*logfile) << "dest_v " <<  dest_v << endl;
-                    //(*logfile) << "dest_v->visitedArray " <<  dest_v->visitedArray << endl;
-                    if(dest_v->visitedArray[tid] == source_id){//destination vertex is already visited
-                    
-                        if(dest_v->dist_from_source[tid] == pred_v_dist + 1){//check if the path length from source is same
-                            //another shortest path from source to dest
-                            path_cnt += pred_v->path_cnt[tid];
-                            dest_v->path_cnt[tid] += pred_v->path_cnt[tid];
-                            if(pred_v->BC_path_indicator[tid] == source_id){//there is path to pred_v that passes through BC v
-                                path_cnt_with_v += pred_v->v_path_cnt[tid];//add pred vertex shortest paths
-                                dest_v->v_path_cnt[tid] += pred_v->v_path_cnt[tid];
-                                dest_v->BC_path_indicator[tid] = source_id;
-                            }
-                                
-                        }
-                        //if higher path length then we can ignore the path
-                        continue;
-                    }
-                    else//if the vertex has not been visited
-                    {   
-                        //(*logfile) << "destv_v " << dest_v << endl;
-                        //(*logfile) << "destv_v->visitedArray " << dest_v->visitedArray << endl;
-                        dest_v->visitedArray[tid] = source_id;
-                        dest_v->dist_from_source[tid] = pred_v_dist + 1;
-                        path_cnt += pred_v->path_cnt[tid];
-                        dest_v->path_cnt[tid] = pred_v->path_cnt[tid];
-                        if(pred_v->BC_path_indicator[tid] == source_id){//there is path to pred_v that passes through BC v
-                            path_cnt_with_v += pred_v->v_path_cnt[tid];//add pred vertex shortest paths
-                            dest_v->v_path_cnt[tid] = pred_v->v_path_cnt[tid];
-                            dest_v->BC_path_indicator[tid] = source_id;
-                        }
-                        Q.push(dest_v);
+                if(dest_v->visitedArray[tid] != source_id)//destination vertex is not visited
+                {
 
-                    }
-                }
-                else
-                {   //If the dest vnode is a BC vertex
-                    //no need to add to final path cnt or final path cnt through v
-                    if(dest_v->visitedArray[tid] != source_id )//the node hasnt been visited yet
-                    {   
-                        dest_v->visitedArray[tid] = source_id;
-                        dest_v->BC_path_indicator[tid] = source_id;
-                        dest_v->dist_from_source[tid] =  pred_v_dist + 1;
-                        dest_v->path_cnt[tid] = pred_v->path_cnt[tid];
-                        dest_v->v_path_cnt[tid] = pred_v->path_cnt[tid];
-                        Q.push(dest_v);
-                    }
-                    else if(dest_v->dist_from_source[tid] == pred_v_dist + 1){
-                        //node has been visited and this is another path with same path length
-                        dest_v->path_cnt[tid] += pred_v->path_cnt[tid];
-                        dest_v->v_path_cnt[tid] += pred_v->path_cnt[tid];
-                    }
-
+                    dest_v->visitedArray[tid] = source_id;
+                    dest_v->dist_from_source[tid] = dist;
+                    if(dist > max_dist)
+                        max_dist = dist;                    
+                    Q.push(dest_v);
                 }
             }
         }
-        //cout << "end loop" << endl;
 
-
+        return max_dist;
     }
 
 
-    float get_BC(int v , int tid ,fstream * logfile){
-        int path_cnt = 0;
-        int v_path_cnt = 0;
-        
-        
+
+    
+
+   float get_diameter(int tid ){
 
         int bucket_size = Head->next->size;
         SnapFSet * snap_buckets = Head->next->buckets;
         SnapFSet  snap_b;
+        int max_dist = 0;
         //cout << "bucket_size " << bucket_size << endl;
         for(int i =0 ; i< bucket_size ; i++){
             //cout << "bucket " << i << endl;
@@ -1493,23 +1444,20 @@ class SnapGraph{
             SnapVNode * snap_v =  snap_b.head->vnext;
             //check if curr snap enode dest vertex exist
             SnapHNode *t = Head->next;
-            int nodes = 0;
             while(snap_v && snap_v->key!= INT_MAX){
-                nodes++;
-                if(snap_v->key != v)
-                    this->BC_from_source(snap_v , v, path_cnt, v_path_cnt , tid , logfile);
+                int dist = this->max_dist_for_source(snap_v , tid );
+                if(dist > max_dist)
+                    max_dist = dist;
                 snap_v = snap_v->vnext;
             }
 
-            //cout << "bucket " << i << " nodes :" << nodes << endl; 
         }
 
-        //cout <<"bucket processed" << endl;
     
-        return v_path_cnt * 1.0 / path_cnt;
+        return max_dist;
     }
 
-    
+ 
 
 };
 
