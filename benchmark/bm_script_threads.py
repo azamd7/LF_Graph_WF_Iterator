@@ -12,8 +12,8 @@ now = datetime.now() # current date and time
 date_time_obj =now.strftime('%H_%M_%S') 
 
 
-#threads = [13,26,52,78,102] 
-threads = [4,8]
+threads = [13,26,52,78,102] 
+#threads = [4,8]
 algos = [ "icdcn_BC_tt_ss" , "report_BC_tt_ss" , "opodis_BC_tt_ss" ]
 debug = False
 main_file = "main.cpp"
