@@ -610,7 +610,7 @@ void *thread_funct(void * t_args){
         switch(op_index) {
         case 0://add vertex
             {
-                int rand_node_id = rand() % max_nodes; 
+                int rand_node_id = rand() % max_nodes + 1; 
                 if(debug) 
                     logfile_th << " thread id : " << thread_num << "Add vertex  : " << rand_node_id << endl;
                 graph->AddVertex(rand_node_id,thread_num,&logfile_th,debug );
@@ -621,7 +621,7 @@ void *thread_funct(void * t_args){
         case 1:
             // delete vertex
             {
-                int rand_node_id = rand() % max_nodes;    
+                int rand_node_id = rand() % max_nodes + 1;    
                 if(debug)
                     logfile_th << " thread id : " << thread_num << "Delete vertex : " << rand_node_id << endl;
                 graph->RemoveVertex(rand_node_id,thread_num,&logfile_th, debug);
@@ -632,10 +632,10 @@ void *thread_funct(void * t_args){
         case 2:
             // add edge
             {
-                int rand_source = rand() % max_nodes; 
-                int rand_dest = rand() % max_nodes;
+                int rand_source = rand() % max_nodes + 1; 
+                int rand_dest = rand() % max_nodes + 1; 
                 while(rand_dest == rand_source){
-                    rand_dest = rand() % max_nodes;
+                    rand_dest = rand() % max_nodes + 1; 
                 }
                 if(debug)   
                     logfile_th << " thread id : " << thread_num << "Add edge : " << rand_source << " " << rand_dest << endl;
@@ -646,10 +646,10 @@ void *thread_funct(void * t_args){
             break;
         case 3:
             //delete edge
-            {   int rand_source = rand() % max_nodes; 
-                int rand_dest = rand() % max_nodes;
+            {   int rand_source = rand() % max_nodes + 1; 
+                int rand_dest = rand() % max_nodes + 1; 
                 while(rand_dest == rand_source){
-                    rand_dest = rand() % max_nodes;
+                    rand_dest = rand() % max_nodes + 1; 
                 }
                 if(debug)
                     logfile_th << " thread id : " << thread_num << " Delete edge : " << rand_source << " " << rand_dest  << endl;
@@ -660,10 +660,10 @@ void *thread_funct(void * t_args){
             break;
         case 4:
             //contains edge
-            {   int rand_source = rand() % max_nodes; 
-                int rand_dest = rand() % max_nodes;
+            {   int rand_source = rand() % max_nodes + 1; 
+                int rand_dest = rand() % max_nodes + 1; 
                 while(rand_dest == rand_source){
-                    rand_dest = rand() % max_nodes;
+                    rand_dest = rand() % max_nodes + 1; 
                 }
                 if(debug)
                     logfile_th << " thread id : " << thread_num << " Contians Edge : " << rand_source << " " << rand_dest  << endl;
@@ -674,7 +674,7 @@ void *thread_funct(void * t_args){
             break;
         case 5:
             //contains vertex
-            {   int node_id = rand() % max_nodes; 
+            {   int node_id = rand() % max_nodes + 1; 
                 
                 if(debug)
                     logfile_th << " thread id : " << thread_num << " Contains vertex : " << node_id  << endl;
@@ -971,7 +971,7 @@ int main(int argc, char** argv) {
         
         tot_cnt += ops[i];
     }
-    avg_cnt = tot_cnt * 1.0 /( num_of_threads * test_duration);
+    avg_cnt = tot_cnt * 1.0 /( test_duration);
     max_cnt = max_cnt * 1.0 /( test_duration);
 
     opfile << "Avg  : " << avg_cnt <<fixed << endl;

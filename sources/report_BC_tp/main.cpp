@@ -620,8 +620,8 @@ void *thread_funct(void * t_args){
                 if(debug) 
                     logfile_th << " thread id : " << thread_num << "Add vertex  : " << rand_node_id << endl;
                 graph->AddVertex(rand_node_id,thread_num,&logfile_th,debug );
-                //if(continue_exec)
-                //    ops[thread_num]++;
+                if(continue_exec)
+                    ops[thread_num]++;
             }
             break;
         case 1:
@@ -631,8 +631,8 @@ void *thread_funct(void * t_args){
                 if(debug)
                     logfile_th << " thread id : " << thread_num << "Delete vertex : " << rand_node_id << endl;
                 graph->RemoveVertex(rand_node_id,thread_num,&logfile_th, debug);
-                //if(continue_exec)
-                //    ops[thread_num]++;
+                if(continue_exec)
+                    ops[thread_num]++;
             }
             break;
         case 2:
@@ -646,8 +646,8 @@ void *thread_funct(void * t_args){
                 if(debug)   
                     logfile_th << " thread id : " << thread_num << "Add edge : " << rand_source << " " << rand_dest << endl;
                 graph->AddEdge(rand_source , rand_dest , thread_num,&logfile_th,debug);
-                //if(continue_exec)
-                //    ops[thread_num]++;
+                if(continue_exec)
+                    ops[thread_num]++;
             }
             break;
         case 3:
@@ -660,8 +660,8 @@ void *thread_funct(void * t_args){
                 if(debug)
                     logfile_th << " thread id : " << thread_num << " Delete edge : " << rand_source << " " << rand_dest  << endl;
                 graph->RemoveE(rand_source , rand_dest , thread_num,&logfile_th,debug);
-                //if(continue_exec)
-                //    ops[thread_num]++;
+                if(continue_exec)
+                    ops[thread_num]++;
             }
             break;
         case 4:
@@ -692,18 +692,24 @@ void *thread_funct(void * t_args){
         case 6:
             //snapshot
             {
-                logfile_th << " thread id : " << thread_num << " Collecting snapshot"  << endl;
-                //print_graph(&logfile_th , graph->head);
-                SnapCollector * sc =  takeSnapshot(graph->head , max_threads, &logfile_th,debug);
-                //int key = rand() % max_nodes;
-                //sc->getBFS(&logfile_th , debug , thread_num, key );
-                if(continue_exec)
-                    ops[thread_num]++;
-                
-                if(debug){ 
-                    sc->print_snap_graph(&logfile_th);
+                    //print_graph(&logfile_th , graph->head);
+                    SnapCollector * sc =  takeSnapshot(graph->head , max_threads, &logfile_th,debug);
+                    //int key = rand() % max_nodes;
+                    //sc->getBFS(&logfile_th , debug , thread_num, key );
+                    int node_id = rand() % max_nodes + 1; 
+                   
                     
-                }
+                    float bc = sc->get_BC(node_id , thread_num, &logfile_th,debug);
+                    //cout << bc << endl;
+                    //int key = rand() % max_nodes;
+                    //cout << bc << endl;
+                    if(continue_exec)
+                        ops[thread_num]++;
+                    
+                    if(debug){ 
+                        
+                        sc->print_snap_graph(&logfile_th);
+                    }
                 
                
             }
@@ -803,8 +809,6 @@ void *init_graph_thread_funct(void * t_args){
     }
     if(debug)
     {
-        logfile_th << "Nodes added : " << nodes_added << endl;
-        logfile_th << "Edges added : " << edges_added << endl;
         logfile_th.close();
     }
     
@@ -848,7 +852,26 @@ GraphList * create_graph(int init_vertices , int init_edges){
     return graph;
 }
 
+GraphList * create_graph_from_file(string file){
+    GraphList * graph = new GraphList();
+    ifstream cinn(file);
+    long n,m;
+    int u, v, v_;
+    cinn>>n>>m;
+  
+    int i,j, e=0;
 
+    for(i=1;i<=2*n;i++){
+        graph->AddVertex(i , -1 , nullptr , false);
+    }
+    for(j=1; j<=m; j = j+1){
+	    cinn>>u>>v;
+        graph->AddEdge(u,v , -1 , nullptr , false);
+	    e++;
+      }   
+    return graph;
+  //cout<<"Edge:"<<e<<endl;
+} 
 // class GRAPH;
 
 
@@ -873,20 +896,15 @@ int main(int argc, char** argv) {
         test_duration = stoi(argv[3]);
         initial_vertices = stoi(argv[4]);
         initial_edges = stoi(argv[5]);
-        if(argc > 7){
+        if(argc > 8){
             //read dist probabilities
             for(int i = 0;i< 7 ; i++){
-                dist_prob[i] = stoi(argv[6+i]);
+                dist_prob[i] = stoi(argv[7+i]);
             }
             
         }
-        else if(argc == 7){
-			 if(argv[6] == "D"){
-            	debug = true;
-       		 }
-		}
-        if(argc == 14){
-            if(argv[13][0] == 'D'){
+        if(argc == 15){
+            if(argv[14][0] == 'D'){
             	debug = true;
        		}
         }
@@ -931,8 +949,8 @@ int main(int argc, char** argv) {
     //}
     //print_graph_init(&opfile , graph->head);
 
-    GraphList * graph = create_graph(initial_vertices ,initial_edges);
-
+    //GraphList * graph = create_graph(initial_vertices ,initial_edges);
+    GraphList * graph = create_graph_from_file(argv[6]);
     
     //sc->print_snap_graph(&logfile);
     //printf(graph->ContainsE(5,4,1) != 2? "False\n" : "True\n");

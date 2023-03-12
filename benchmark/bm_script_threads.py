@@ -12,24 +12,26 @@ now = datetime.now() # current date and time
 date_time_obj =now.strftime('%H_%M_%S') 
 
 
-threads = [13,26,52,78,102] 
-#threads = [4,8]
-algos = [ "icdcn_tp" , "report_tp" ]
+#threads = [13,26,52,78,102] 
+threads = [4,8]
+algos = [ "icdcn_BC_tt_ss" , "report_BC_tt_ss" , "opodis_BC_tt_ss" ]
 debug = False
 main_file = "main.cpp"
-iterations = 7
+iterations = 1
 test_duration = "10" #no of sec before stop executions
 init_vertices = str(10**4)
 init_edges = str(2 * (10**4))
+
 
 #files
 maxt_output_file_fmt = '../output/{0}_op_' + date_time_obj +"_maxt_{1}" +  '.csv'
 avgt_output_file_fmt = '../output/{0}_op_' + date_time_obj +"_avgt_{1}" + '.csv'
 script_log_file = "../script_log/" + date_time_obj + ".txt"
+input_file = "../input/datasets/synth_10k_20k"
 
 #commands
 cmd1 = "g++ -std=c++11 -pthread -O3 -o ../sources/{0}/a.out ../sources/{0}/" + main_file
-cmd2 = "../sources/{0}/a.out ../log/{1} {2} {3} {4} {5}"
+cmd2 = "../sources/{0}/a.out ../log/{1} {2} {3} {4} {5} {6}"
 
 
 # * 0->add vertex
@@ -106,7 +108,7 @@ with open(script_log_file, 'w+') as log_f_object:
                             if debug:
                                 cmd += " debug"
                             print("Algo : "+ algo,file = log_f_object,flush = True)
-                            cmd = cmd.format(algo,date_time_obj,str(thread_cnt),test_duration,init_vertices,init_edges)
+                            cmd = cmd.format(algo,date_time_obj,str(thread_cnt),test_duration,init_vertices,init_edges, input_file)
                             avg_time_taken_list = []
                             max_time_taken_list = []
 

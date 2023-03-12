@@ -23,26 +23,34 @@ class Snap_Vnode;
 class Snap_Enode {
     public:
         atomic<Snap_Enode *> enext;
+        int key;
         Enode * enode;
-        Snap_Vnode * s_vnode;
+        atomic<Snap_Vnode *> d_vnode; //dest_vnode
         int * visitedArray;// size same as threads // used to indicate whether the node has beeen visited by the given thread
+        
 
         Snap_Enode(Enode * enode, Snap_Enode * enext) {
             this -> enext = enext; 
             this -> enode = enode;
-            visitedArray = new int[total_threads];
-            visitedArray = {0};
+            visitedArray = new int[total_threads]{0};
+            d_vnode.store(nullptr);
+            if(enode != nullptr)
+                this->key = enode->val;
+            
         }
-        Snap_Enode(Enode * enode, Snap_Enode * enext, Snap_Vnode * s_vnode) {
+        Snap_Enode(Enode * enode, Snap_Enode * enext, Snap_Vnode * d_vnode) {
             this -> enext = enext; 
             this -> enode = enode;
-            this -> s_vnode = s_vnode;
-            visitedArray = new int[total_threads];
-            visitedArray = {0};
+            this -> d_vnode = d_vnode;
+            visitedArray = new int[total_threads]{0};
+            if(enode != nullptr)
+                this->key = enode->val;
+            
         }
 
         ~Snap_Enode(){
             delete[] visitedArray;
+            
         }
 };
 // the common sentinel snap Enode
@@ -51,11 +59,16 @@ Snap_Enode * end_snap_Enode = new Snap_Enode(NULL, NULL);
 // Structure for Collected graph's Vertex Node
 class Snap_Vnode {
     public:
-        Vnode * vnode;
         atomic<Snap_Vnode *> vnext;
+        Vnode * vnode;
         Snap_Enode * ehead; // head of edge linked list
         int * visitedArray;// size same as threads // used to indicate whether the node has beeen visited by the given thread
+        //this will have value as the source node which was being processed when it was visited last
 
+        int * dist_from_source;
+        int * BC_path_indicator;
+        int * path_cnt;//total shortest path from source 
+        int * v_path_cnt;//total shortest path containing BC vertex
     //is_reconstruct is true then end enode is marked
     Snap_Vnode(Vnode * vnode, Snap_Vnode * next_snap_vnode, bool is_reconstruct = false) {
         
@@ -67,9 +80,12 @@ class Snap_Vnode {
         else
             start_snap_Enode = new Snap_Enode(this->vnode-> ehead, (Snap_Enode *)set_mark((long)end_snap_Enode));           
         this -> ehead = start_snap_Enode;
-        this ->visitedArray = new int[total_threads];
-        this ->visitedArray = {0};
-       
+        this ->visitedArray = new int[total_threads]{0};
+
+        dist_from_source = new int[total_threads]{0};
+        BC_path_indicator = new int[total_threads]{0};
+        path_cnt = new int[total_threads]{0};
+        v_path_cnt = new int[total_threads]{0};
     }
 
 
@@ -79,9 +95,11 @@ class Snap_Vnode {
         this -> vnext = next_snap_vnode;
         Snap_Enode * start_snap_Enode = new Snap_Enode(this->vnode-> ehead, end_snap_Enode);
         this -> ehead = start_snap_Enode;
-        this ->visitedArray = new int[total_threads];
-        this ->visitedArray = {0};
-       
+        this ->visitedArray = new int[total_threads]{0};
+        dist_from_source = new int[total_threads]{0};
+        BC_path_indicator = new int[total_threads]{0};
+        path_cnt = new int[total_threads]{0};
+        v_path_cnt = new int[total_threads]{0};
     }
 
     ~Snap_Vnode(){
@@ -94,6 +112,8 @@ class Snap_Vnode {
             delete tmp;
         }
         delete[] visitedArray;
+        delete[] dist_from_source;
+        delete[] BC_path_indicator;
     }
 };
 
@@ -239,7 +259,7 @@ class SnapCollector{
         atomic<vector<VertexReport> *>sorted_vertex_reports_ptr = {nullptr};
         atomic<vector<EdgeReport> *>sorted_edge_reports_ptr = {nullptr};
         atomic<long> vertex_report_index = {0}; //used to store the highest index in sorted vertex reports currently being processed by any thread
-        atomic<long> edge_report_index ;//at
+        atomic<long> edge_report_index = {0} ;//at
 
 
         //Here head points to the "start_vnode" of the original graph 
@@ -560,7 +580,6 @@ class SnapCollector{
                 if(index >= vreport_size)
                     break;
                 long prev_index = index;
-
                 VertexReport report = vreports->at(index);
                 if(debug)
                     (*logfile) << "Vertex report : " << report.vnode->val << " action : " << report.action << endl;
@@ -571,7 +590,7 @@ class SnapCollector{
                    
                 if (report.action == 2){
                     //No delete report as the reports are sorted by delete and then insert for same address and value
-                    if( (long)next_snap_Vnode == get_marked_ref((long)end_snap_Vnode)&& next_snap_Vnode->vnode != report.vnode){
+                    if( (long)next_snap_Vnode == get_marked_ref((long)end_snap_Vnode)|| next_snap_Vnode->vnode != report.vnode){
                          
                         Snap_Vnode *s_vnode = new Snap_Vnode(report.vnode, next_snap_Vnode,true);
                         atomic_compare_exchange_strong(&prev_snap_Vnode->vnext , &next_snap_Vnode , s_vnode);
@@ -615,6 +634,8 @@ class SnapCollector{
             }
 
             
+            if(debug)
+                (*logfile) << "Edge Iterations started" << endl;
 
             /// @brief processing edge reports
             vector<EdgeReport> *edge_reports = sorted_edge_reports_ptr.load();
@@ -671,12 +692,24 @@ class SnapCollector{
                     break;
                 long prev_index = index;
                 
+                
+                //optimization
+                if(index > 0){
+                    Vnode * last_updated_source = edge_reports->at(index-1).source;
+                    while((long)loc_snap_vertex_ptr != get_marked_ref((long)end_snap_Vnode)  && (loc_snap_vertex_ptr->vnode->val < last_updated_source->val )){
+                        loc_snap_vertex_ptr = loc_snap_vertex_ptr ->vnext;
+                    }
+                }
+
+
                 //check if edge reports is empty
                 EdgeReport report = edge_reports->at(index);
                 curr_source = report.source;
                 if(debug)
                     (*logfile) << "Edge report: " << report.source->val<<"(" << report.source << ") " << report.enode->val <<"(" << report.enode->v_dest << ") "<<" "<< report.action<< endl;
                 //fetch the next vertex pointer
+
+                
                 while ((long)loc_snap_vertex_ptr != get_marked_ref((long)end_snap_Vnode)  && (loc_snap_vertex_ptr->vnode->val < curr_source->val )){
                      //remove edge from edge list of loc_snap_vertex_ptr with TO vertex present in DELETE reports
                     if(debug)
@@ -685,6 +718,11 @@ class SnapCollector{
                     prev_snap_edge = loc_snap_vertex_ptr->ehead;
                     curr_snap_edge = loc_snap_vertex_ptr->ehead->enext;
                     while ((long)curr_snap_edge != get_marked_ref((long)end_snap_Enode)){
+                        if(curr_snap_edge->d_vnode != nullptr){
+                            prev_snap_edge = curr_snap_edge;
+                            curr_snap_edge = curr_snap_edge->enext;
+                            continue;
+                        }
                         if(debug)
                             (*logfile) << "check if edge dest vertex is present " << curr_snap_edge->enode->val << "(" <<curr_snap_edge<< ")" <<endl;
                         //check if dest vertex is present for curr snap edge(not the report related edge)
@@ -692,15 +730,18 @@ class SnapCollector{
                                     and dest_vsnap_ptr->vnode->val < curr_snap_edge->enode->val){
                             dest_vsnap_ptr = dest_vsnap_ptr->vnext;
                         }
-                        if ((long)dest_vsnap_ptr != get_marked_ref((long)end_snap_Vnode) && dest_vsnap_ptr->vnode != curr_snap_edge->enode->v_dest){
+                        if ((long)dest_vsnap_ptr == get_marked_ref((long)end_snap_Vnode) || dest_vsnap_ptr->vnode != curr_snap_edge->enode->v_dest){
                             //delete the edge
                             Snap_Enode * tmp_snap_edge =  curr_snap_edge;
                             if(atomic_compare_exchange_strong(&prev_snap_edge->enext , &tmp_snap_edge , curr_snap_edge->enext.load()) and debug)
                                 (*logfile) << "Edge Deleted: " << loc_snap_vertex_ptr->vnode->val<<"(" << loc_snap_vertex_ptr->vnode << ") " << curr_snap_edge->enode->val <<"(" << curr_snap_edge->enode->v_dest << ") " <<" "<< endl;
                             curr_snap_edge = curr_snap_edge->enext;
                         }
-                        else {
-                            curr_snap_edge->s_vnode = dest_vsnap_ptr;
+                        else{
+                           
+                            Snap_Vnode * tmp = nullptr;
+                            atomic_compare_exchange_strong(&curr_snap_edge->d_vnode , &tmp, dest_vsnap_ptr);
+                            //curr_snap_edge->d_vnode = dest_vsnap_ptr;
                             prev_snap_edge = curr_snap_edge;
                             curr_snap_edge = curr_snap_edge->enext;
                         }
@@ -734,19 +775,26 @@ class SnapCollector{
 
                 while( (long)curr_snap_edge != get_marked_ref((long)end_snap_Enode) 
                                 and curr_snap_edge->enode->val < report.enode->val){
+                    if(curr_snap_edge->d_vnode != nullptr){
+                        prev_snap_edge = curr_snap_edge;
+                        curr_snap_edge = curr_snap_edge->enext;
+                        continue;
+                    }
                     //check if edge dest vertex is present if not remove
                     while ((long)dest_vsnap_ptr != get_marked_ref((long)end_snap_Vnode) and dest_vsnap_ptr->vnode->val < curr_snap_edge->enode->val)
                         dest_vsnap_ptr = dest_vsnap_ptr->vnext;
-                    if (dest_vsnap_ptr->vnode != curr_snap_edge->enode->v_dest){
+                    if ((long)dest_vsnap_ptr == get_marked_ref((long)end_snap_Vnode) || dest_vsnap_ptr->vnode != curr_snap_edge->enode->v_dest){
                         //delete the edge
                         Snap_Enode * temp_snap_Enode = curr_snap_edge;
                         if(atomic_compare_exchange_strong(&prev_snap_edge->enext , &temp_snap_Enode , curr_snap_edge->enext.load()) and debug)
                             (*logfile) << "Edge Deleted: " << curr_source->val<<"(" << curr_source << ") " << curr_snap_edge->enode->val <<"(" << curr_snap_edge->enode->v_dest << ") " <<" "<< endl;
                         curr_snap_edge = curr_snap_edge->enext;
                     }
-                    else{
-                        //dest snap edge is present
-                        curr_snap_edge->s_vnode = dest_vsnap_ptr;//update the dest snap vnode for edge
+                    else  {
+                           
+                        Snap_Vnode * tmp = nullptr;
+                        atomic_compare_exchange_strong(&curr_snap_edge->d_vnode , &tmp, dest_vsnap_ptr);
+                        //curr_snap_edge->d_vnode = dest_vsnap_ptr;
                         prev_snap_edge = curr_snap_edge;
                         curr_snap_edge = curr_snap_edge->enext;
                     }
@@ -759,7 +807,7 @@ class SnapCollector{
                                 and dest_vsnap_ptr->vnode->val < report.enode->v_dest->val){
                             dest_vsnap_ptr = dest_vsnap_ptr->vnext;
                         }
-                        if ((long)dest_vsnap_ptr != get_marked_ref((long)end_snap_Vnode) and dest_vsnap_ptr->vnode == report.enode->v_dest){ //no delete report TO edge address and value
+                        if ((long)dest_vsnap_ptr != get_marked_ref((long)end_snap_Vnode) && dest_vsnap_ptr->vnode == report.enode->v_dest){ //no delete report TO edge address and value
                                            
 
                             Snap_Enode *snode = new Snap_Enode(report.enode,curr_snap_edge, dest_vsnap_ptr);
@@ -796,12 +844,17 @@ class SnapCollector{
                     while( index < ereport_size and edge_reports->at(index).enode == report.enode  )//ignore all report belonging to edge
                         index++;
                 }
-                if (index < ereport_size and edge_reports->at(index).source != curr_source){ //next report is of different source
+                if ((index < ereport_size and edge_reports->at(index).source != curr_source)|| index >= ereport_size){ //next report is of different source
                     //verify the remaining edges of current source
                     while ((long)curr_snap_edge != get_marked_ref((long)end_snap_Enode)){
+                        if(curr_snap_edge->d_vnode != nullptr){
+                            prev_snap_edge = curr_snap_edge;
+                            curr_snap_edge = curr_snap_edge->enext;
+                            continue;
+                        }
                         while ((long)dest_vsnap_ptr != get_marked_ref((long)end_snap_Vnode) and dest_vsnap_ptr->vnode->val < curr_snap_edge->enode->val)
                             dest_vsnap_ptr = dest_vsnap_ptr->vnext;
-                        if ((long)dest_vsnap_ptr != get_marked_ref((long)end_snap_Vnode) and dest_vsnap_ptr->vnode != curr_snap_edge->enode->v_dest){
+                        if ((long)dest_vsnap_ptr == get_marked_ref((long)end_snap_Vnode) || dest_vsnap_ptr->vnode != curr_snap_edge->enode->v_dest){
                             //delete the edge
                             Snap_Enode * tmp_snap_Edge = curr_snap_edge;
                             if(atomic_compare_exchange_strong(&prev_snap_edge->enext , &tmp_snap_Edge , curr_snap_edge->enext.load()) and debug)
@@ -809,16 +862,64 @@ class SnapCollector{
 
                             curr_snap_edge = curr_snap_edge->enext;
                         }
-                        else{
-                            curr_snap_edge->s_vnode = dest_vsnap_ptr;
+                        else  {
+                           
+                            Snap_Vnode * tmp = nullptr;
+                            atomic_compare_exchange_strong(&curr_snap_edge->d_vnode , &tmp, dest_vsnap_ptr);
+                            //curr_snap_edge->d_vnode = dest_vsnap_ptr;
                             prev_snap_edge = curr_snap_edge;
                             curr_snap_edge = curr_snap_edge->enext;
                         }
                     }
+
+                    loc_snap_vertex_ptr = loc_snap_vertex_ptr->vnext;
                 }
                 
                 atomic_compare_exchange_strong(&edge_report_index,&prev_index,index);//update edge index
                 prev_source = curr_source;
+            }
+
+            //verify remaining edge nodes after the last report node
+            while ((long)loc_snap_vertex_ptr != get_marked_ref((long)end_snap_Vnode) ){
+                    //remove edge from edge list of loc_snap_vertex_ptr with TO vertex present in DELETE reports
+                if(debug)
+                    (*logfile) << "checking vertex : " << loc_snap_vertex_ptr->vnode->val  << "(" <<loc_snap_vertex_ptr->vnode << ")" <<endl;
+                dest_vsnap_ptr  = head_snap_Vnode->vnext;
+                prev_snap_edge = loc_snap_vertex_ptr->ehead;
+                curr_snap_edge = loc_snap_vertex_ptr->ehead->enext;
+                while ((long)curr_snap_edge != get_marked_ref((long)end_snap_Enode)){
+                    if(curr_snap_edge->d_vnode != nullptr){
+                        prev_snap_edge = curr_snap_edge;
+                        curr_snap_edge = curr_snap_edge->enext;
+                        continue;
+                    }
+
+                    if(debug)
+                        (*logfile) << "check if edge dest vertex is present " << curr_snap_edge->enode->val << "(" <<curr_snap_edge<< ")" <<endl;
+                    //check if dest vertex is present for curr snap edge(not the report related edge)
+                    while((long)dest_vsnap_ptr != get_marked_ref((long)end_snap_Vnode) 
+                                and dest_vsnap_ptr->vnode->val < curr_snap_edge->enode->val){
+                        dest_vsnap_ptr = dest_vsnap_ptr->vnext;
+                    }
+                    if ((long)dest_vsnap_ptr == get_marked_ref((long)end_snap_Vnode) || dest_vsnap_ptr->vnode != curr_snap_edge->enode->v_dest){
+                        //delete the edge
+                        Snap_Enode * tmp_snap_edge =  curr_snap_edge;
+                        if(atomic_compare_exchange_strong(&prev_snap_edge->enext , &tmp_snap_edge , curr_snap_edge->enext.load()) and debug)
+                            (*logfile) << "Edge Deleted: " << loc_snap_vertex_ptr->vnode->val<<"(" << loc_snap_vertex_ptr->vnode << ") " << curr_snap_edge->enode->val <<"(" << curr_snap_edge->enode->v_dest << ") " <<" "<< endl;
+                        curr_snap_edge = curr_snap_edge->enext;
+                    }
+                    else {
+                           
+                        Snap_Vnode * tmp = nullptr;
+                        atomic_compare_exchange_strong(&curr_snap_edge->d_vnode , &tmp, dest_vsnap_ptr);
+                        //curr_snap_edge->d_vnode = dest_vsnap_ptr;
+                        prev_snap_edge = curr_snap_edge;
+                        curr_snap_edge = curr_snap_edge->enext;
+                    }
+                }
+                
+                
+                loc_snap_vertex_ptr = loc_snap_vertex_ptr->vnext;
             }
         }
     
@@ -910,7 +1011,7 @@ class SnapCollector{
             bfslist_t *bfsHead1 = &bfsHead, *bfsTail1 = &bfsTail;
             //int i;
             int edgecount = 0;
-            queue <BFSNode*> Q;
+            queue <struct BFSNode*> Q;
             //Init(tid);
             cnt = cnt + 1;
             //u->starttime[tid] = time;
@@ -927,7 +1028,7 @@ class SnapCollector{
                 //  cout<<"itNode:"<<itNode->key<<endl;
                     edgecount = edgecount + 1;  
                      
-                    Snap_Vnode *adjVNode = itNode->s_vnode; // get the vertex
+                    Snap_Vnode *adjVNode = itNode->d_vnode; // get the vertex
                    
                     if(!checkVisited(tid, adjVNode, cnt) ){ // check vertex is visited or not
                         
@@ -941,6 +1042,114 @@ class SnapCollector{
             } 
             return edgecount;                
         }
+        /**
+         * @brief This method returns the number of shortest from source s to destination x excluding the vertex v. It also returns the count amoongst those shortes path that contains the v.
+         * 
+         */
+        void BC_from_source(Snap_Vnode *s , int v , int &path_cnt , int &path_cnt_with_v ,int tid ,fstream * logfile ,bool debug){
+            int source_id = s->vnode->val;
+            s->path_cnt[tid] = 1;
+            s->dist_from_source[tid] = 0;
+            
+            queue <Snap_Vnode *> Q;
+            Q.push(s);
+
+            Snap_Enode * eHead;
+            while(!Q.empty()){
+                Snap_Vnode * pred_v = Q.front();
+                
+                int pred_v_dist = pred_v->dist_from_source[tid];
+                Q.pop();
+                eHead = pred_v->ehead;
+                for(Snap_Enode * itNode = eHead->enext.load(); !is_marked_ref((long)itNode); itNode = itNode ->enext.load()){ 
+                    if(itNode->key == source_id)//dest is source node
+                        continue;
+                    
+                    Snap_Vnode* dest_v = itNode->d_vnode;
+                   
+                    if(itNode->key != v){//if its not the BC vertex
+                        
+                        if(dest_v->visitedArray[tid] == source_id){//destination vertex is already visited
+
+                            
+                            if(dest_v->dist_from_source[tid] == pred_v_dist + 1){//check if the path length from source is same
+                                //another shortest path from source to dest
+                                path_cnt += pred_v->path_cnt[tid];
+                                dest_v->path_cnt[tid] += pred_v->path_cnt[tid];
+                                if(pred_v->BC_path_indicator[tid] == source_id){//there is path to pred_v that passes through BC v
+                                    path_cnt_with_v += pred_v->v_path_cnt[tid];//add pred vertex shortest paths
+                                    dest_v->v_path_cnt[tid] += pred_v->v_path_cnt[tid];
+                                    dest_v->BC_path_indicator[tid] = source_id;
+                                }
+                                
+                            }
+                            //if higher path length then we can ignore the path
+                            continue;
+                        }
+                        else//if the vertex has not been visited
+                        {
+                            dest_v->visitedArray[tid] = source_id;
+                            dest_v->dist_from_source[tid] = pred_v_dist + 1;
+                            path_cnt += pred_v->path_cnt[tid];
+                            dest_v->path_cnt[tid] = pred_v->path_cnt[tid];
+                            if(pred_v->BC_path_indicator[tid] == source_id){//there is path to pred_v that passes through BC v
+                                path_cnt_with_v += pred_v->v_path_cnt[tid];//add pred vertex shortest paths
+                                dest_v->v_path_cnt[tid] = pred_v->v_path_cnt[tid];
+                                dest_v->BC_path_indicator[tid] = source_id;
+                            }
+                            Q.push(dest_v);
+                        }
+                    }
+                    else
+                    {   //If the dest vnode is a BC vertex
+                        //no need to add to final path cnt or final path cnt through v
+                        if(dest_v->visitedArray[tid] != source_id )//the node hasnt been visited yet
+                        {   
+                            dest_v->visitedArray[tid] = source_id;
+                            dest_v->BC_path_indicator[tid] = source_id;
+                            dest_v->dist_from_source[tid] =  pred_v_dist + 1;
+                            dest_v->path_cnt[tid] = pred_v->path_cnt[tid];
+                            dest_v->v_path_cnt[tid] = pred_v->path_cnt[tid];
+                            Q.push(dest_v);
+                        }
+                        else if(dest_v->dist_from_source[tid] == pred_v_dist + 1){
+                            //node has been visited and this is another path with same path length
+                            dest_v->path_cnt[tid] += pred_v->path_cnt[tid];
+                            dest_v->v_path_cnt[tid] += pred_v->path_cnt[tid];
+                        }
+
+                    }
+                }
+            }
+
+
+
+        }
+
+
+        float get_BC(int v , int tid, fstream * logfile ,bool debug){
+            int path_cnt = 0;
+            int v_path_cnt = 0;
+            
+             Snap_Vnode * vsnode = this->head_snap_Vnode;
+            if(is_marked_ref((long)vsnode->vnext.load())){
+                return 0;
+            }
+            vsnode = vsnode->vnext;
+
+            while(!is_marked_ref((long)vsnode->vnext.load())){
+                if(vsnode->vnode->val != v)
+                    this->BC_from_source(vsnode , v, path_cnt, v_path_cnt , tid, logfile, debug);
+                    
+                vsnode = vsnode->vnext;
+            }
+            //if(debug){
+            //            *logfile << "path cnt : " << path_cnt << endl;
+            //            *logfile << "v_path_cnt : " << v_path_cnt << endl;
+            //        }
+
+            return v_path_cnt * 1.0 / path_cnt;
+        }
 
         void print_snap_graph(fstream *logfile){
             (*logfile) << "Snapped Graph ---------- of snapshot : " << this  << endl;
@@ -949,6 +1158,7 @@ class SnapCollector{
                 string val = to_string(snap_vnode->vnode->val);
                 
                 (*logfile) << val << "(" << snap_vnode->vnode << ") " <<endl ;
+                //(*logfile) << val << "(" << snap_vnode << "-) " <<endl ;
 
                 Snap_Enode *snap_enode = snap_vnode->ehead->enext;
                 
@@ -957,12 +1167,37 @@ class SnapCollector{
                     string e_val = to_string(snap_enode->enode->val);
                     
                     e_val = " -> " + e_val ;
-                    (*logfile) << e_val <<"(" << snap_enode->enode->v_dest << ") " <<endl ;
+                    
+                    //*logfile << "d_vnode ptr " << snap_enode->d_vnode.load()  << endl;
+                    //*logfile << "d_vnode is null " << (snap_enode->d_vnode== nullptr) << endl;
+                    //*logfile << "snap_enode->enode ptr " << snap_enode->enode  << endl;
+                    //if(snap_enode->enode->val != snap_enode->d_vnode.load()->vnode->val)
+                    //    (*logfile) << e_val <<"(" << snap_enode->enode->v_dest << ") asdsadas" <<endl ;
+                    //else
+                    //    (*logfile) << e_val <<"(" << snap_enode->enode->v_dest << ") " <<endl ;
+
+                    //if(snap_enode->d_vnode== nullptr){
+                    //    (*logfile) << e_val <<"(" << snap_enode->enode->v_dest << ") HoBO" <<endl ;
+                    //}
+                    //else{
+                        (*logfile) << e_val <<"(" << snap_enode->enode->v_dest << ") " <<endl ;
+                    //}
+
+                    //if((long)snap_enode->d_vnode.load() > 100L){
+                    //    (*logfile) << e_val <<"(" << snap_enode->d_vnode << ") " <<  flush ;
+                    //    //(*logfile) << flush << endl;
+                    //    *logfile <<"vis : --" << snap_enode->d_vnode.load()->visitedArray <<endl ;
+                    //}
+                    //else{
+                    //    (*logfile) << e_val <<"(" << snap_enode->d_vnode << ") "  <<endl ;
+                    //}
                     snap_enode = snap_enode -> enext;
                     
                 }
-                (*logfile) <<" Tailp-e " <<snap_enode << endl;
-                
+                if(is_marked_ref((long)snap_enode))
+                    (*logfile) <<" Tail-e " <<snap_enode << "FFFFFFFFFFFFFFF" << endl;
+                else
+                    (*logfile) <<" Tail-e " <<snap_enode << "SSSSSSSSSSSSSSS" << endl;
                 (*logfile) << endl;
                 (*logfile) << "|" <<endl;
                 snap_vnode = snap_vnode->vnext;

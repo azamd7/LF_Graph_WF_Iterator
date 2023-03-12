@@ -559,7 +559,7 @@ void *thread_funct(void * t_args){
         switch(op_index) {
         case 0://add vertex
             {
-                int rand_node_id = rand() % max_nodes; 
+                int rand_node_id = rand() % max_nodes + 1;  
                 if(debug) 
                     logfile_th << " thread id : " << thread_num << "Add vertex  : " << rand_node_id << endl;
                 chrono::high_resolution_clock::time_point startT = chrono::high_resolution_clock::now();
@@ -577,7 +577,7 @@ void *thread_funct(void * t_args){
         case 1:
             // delete vertex
             {
-                int rand_node_id = rand() % max_nodes;    
+                int rand_node_id = rand() % max_nodes + 1;    
                 if(debug)
                     logfile_th << " thread id : " << thread_num << "Delete vertex : " << rand_node_id << endl;
                 chrono::high_resolution_clock::time_point startT = chrono::high_resolution_clock::now();
@@ -595,10 +595,10 @@ void *thread_funct(void * t_args){
         case 2:
             // add edge
             {
-                int rand_source = rand() % max_nodes; 
-                int rand_dest = rand() % max_nodes;
+                int rand_source = rand() % max_nodes + 1; 
+                int rand_dest = rand() % max_nodes + 1; 
                 while(rand_dest == rand_source){
-                    rand_dest = rand() % max_nodes;
+                    rand_dest = rand() % max_nodes + 1; 
                 }
                 if(debug)   
                     logfile_th << " thread id : " << thread_num << "Add edge : " << rand_source << " " << rand_dest << endl;
@@ -616,10 +616,10 @@ void *thread_funct(void * t_args){
             break;
         case 3:
             //delete edge
-            {   int rand_source = rand() % max_nodes; 
-                int rand_dest = rand() % max_nodes;
+            {   int rand_source = rand() % max_nodes + 1; 
+                int rand_dest = rand() % max_nodes + 1; 
                 while(rand_dest == rand_source){
-                    rand_dest = rand() % max_nodes;
+                    rand_dest = rand() % max_nodes + 1; 
                 }
                 if(debug)
                     logfile_th << " thread id : " << thread_num << " Delete edge : " << rand_source << " " << rand_dest  << endl;
@@ -637,10 +637,10 @@ void *thread_funct(void * t_args){
             break;
         case 4:
             //contains edge
-            {   int rand_source = rand() % max_nodes; 
-                int rand_dest = rand() % max_nodes;
+            {   int rand_source = rand() % max_nodes + 1; 
+                int rand_dest = rand() % max_nodes + 1; 
                 while(rand_dest == rand_source){
-                    rand_dest = rand() % max_nodes;
+                    rand_dest = rand() % max_nodes + 1; 
                 }
                 if(debug)
                     logfile_th << " thread id : " << thread_num << " Contians Edge : " << rand_source << " " << rand_dest  << endl;
@@ -659,7 +659,7 @@ void *thread_funct(void * t_args){
             break;
         case 5:
         //contains vertex
-        {   int node_id = rand() % max_nodes; 
+        {   int node_id = rand() % max_nodes + 1; 
             
             if(debug)
                 logfile_th << " thread id : " << thread_num << " Contains vertex : " << node_id  << endl;

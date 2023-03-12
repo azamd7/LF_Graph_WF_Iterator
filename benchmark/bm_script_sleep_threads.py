@@ -20,11 +20,12 @@ threads = 102
 algos = [ "opodis_sleep_resp","icdcn_sleep_resp" , "report_sleep_resp" ]
 debug = False
 main_file = "main.cpp"
-iterations = 4
+iterations = 7
 test_duration = "10" #no of sec before stop executions
 init_vertices = str(10**4)
 init_edges = str(2 * (10**4))
 input_file = "../input/datasets/synth_10k_20k"
+
 
 #files
 maxt_output_file_fmt = '../output/{0}_op_' + date_time_obj +"_maxt_{1}" +  '.csv'
