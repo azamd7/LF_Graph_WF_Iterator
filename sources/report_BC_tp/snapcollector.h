@@ -720,7 +720,7 @@ class SnapCollector{
                     {
                         //no report exist for the given source...
                         //store -2 in snap_vnodes edge report to indicate no reports for edges of this snap vnode
-                        atomic_compare_exchange_strong(&loc_snap_vertex_ptr->report_index , &prev_index , -2);//if fails some other thread
+                        atomic_compare_exchange_strong(&loc_snap_vertex_ptr->report_index , &prev_index , -2L);//if fails some other thread
                         //would have done it in its 2nd iteration through the snap vnodes
 
                     }
@@ -906,7 +906,7 @@ class SnapCollector{
                         {    
                             //mark edge report as -2
                             
-                            atomic_compare_exchange_strong(&loc_snap_vertex_ptr->report_index , &prev_index , -2);
+                            atomic_compare_exchange_strong(&loc_snap_vertex_ptr->report_index , &prev_index , -2L);
 
                         }
                         else
@@ -919,7 +919,7 @@ class SnapCollector{
                         }
                     }
                     //if edge report is not -2
-                    if(loc_snap_vertex_ptr->report_index != -2){
+                    if(loc_snap_vertex_ptr->report_index != -2L){
                         
                         if(debug)
                             *logfile << "Re-Processing node " << loc_snap_vertex_ptr->vnode->val << "(" <<loc_snap_vertex_ptr->vnode<< ")" << endl; 
