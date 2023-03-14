@@ -40,7 +40,6 @@
 #include<list>
 #include<queue>
 #include<stack>
-#include<string>
 #include <unistd.h>
 #include <chrono>
 
@@ -58,8 +57,6 @@
 #define pntp "PATH NOT PRESENT"
 
 using namespace std;
-
-int NTHREADS;
 
 // ofstream coutt("getpath.txt");
  // freopen("error.txt", "w", stderr );
@@ -99,15 +96,6 @@ typedef struct ENode{
 typedef struct Snap_ENode{
 	struct ENode * pointe; // pointer to dest snap_vertex
 	struct Snap_ENode * enext; // pointer to the next ENode
-    struct Snap_VNode * dest_v;//points to destination snap vnode
-    int key;//has the enode val
-
-    Snap_ENode(int key){
-        this-> key = key;
-    }
-
-    
-
 }snap_elist;
 
 // VNode structure
@@ -123,22 +111,6 @@ typedef struct Snap_VNode{
 	struct VNode * pointv; // pointer to dest snap_vertex
 	struct Snap_ENode * enext; // pointer to the next ENode
     struct Snap_VNode * vnext;//next snap vertex pointer
-    
-    int key;
-
-    Snap_VNode(VNode * vnode, Snap_VNode * next_snap_vnode) {
-        
-        this -> pointv = vnode;
-        this -> vnext = next_snap_vnode;
-        Snap_ENode * start_snap_Enode;         
-        this -> enext = start_snap_Enode;
-       
-    }
-
-    Snap_VNode(int key){
-        this->vnext = nullptr;
-        
-    }
 }snap_vlist;
 
 // BFSNode structure
@@ -197,28 +169,6 @@ void init(){
           Head ->visitedArray = NULL;
           Head->vnext.store(Tail); // Head next is Tail
  }
-
-  void initGraphFromFile(string file, int NT, int tid){
-  ifstream cinn(file);
-  long n,m;
-  int u, v, v_;
-  cinn>>n>>m;
-  //cout<<n<<" "<<m<<endl;
-  
-  int i,j, e=0;
-  //cin>>i;
-  for(i=1;i<=2*n;i++){
-        //v_ = rand()%n;
-        AddV(i, NT);
-   }
-   //cout<<
-  for(j=1; j<=m; j = j+1){
-	cinn>>u>>v;
-    AddE(u,v);
-	e++;
-      }   
-  //cout<<"Edge:"<<e<<endl;
-} 
 
  // Find pred and curr for VNode(key)     
 void locateVPlus(vlist_t *startV, vlist_t ** n1, vlist_t ** n2, int key){
@@ -491,10 +441,10 @@ void locateCPlus(vlist_t *startV, vlist_t ** n1, vlist_t ** n2, int key){
 
 
 snap_vlist * add_snap_vertex(vlist_t * vnode, snap_vlist * prev_vsnap ){
-    snap_elist * se_head = new snap_elist(vnode->enext.load()->val);
+    snap_elist * se_head = new snap_elist();
     se_head->pointe = vnode->enext.load();
     
-    snap_vlist * svnode = new snap_vlist(vnode->val);
+    snap_vlist * svnode = new snap_vlist();
     svnode->pointv = vnode;
     svnode->enext = se_head;
     prev_vsnap->vnext = svnode;
@@ -504,7 +454,7 @@ snap_vlist * add_snap_vertex(vlist_t * vnode, snap_vlist * prev_vsnap ){
 
 
 snap_elist* add_snap_edge(elist_t * enode , snap_elist * prev_esnap){
-    snap_elist * s_enode = new snap_elist(enode->val);
+    snap_elist * s_enode = new snap_elist();
     s_enode->pointe = enode;
     prev_esnap->enext = s_enode;
     return s_enode;
@@ -512,7 +462,7 @@ snap_elist* add_snap_edge(elist_t * enode , snap_elist * prev_esnap){
    // return the head of the snapped graph
 Snap_VNode* snapshot(){
     vlist_t * vhead =this->Head;
-    Snap_VNode *sg_copy_head = new Snap_VNode(vhead->val);
+    Snap_VNode *sg_copy_head = new Snap_VNode();
     sg_copy_head->pointv = vhead;
     
     snap_vlist * last_snapv = sg_copy_head;
@@ -554,22 +504,13 @@ Snap_VNode* snapshot(){
                 snap_vdest = snap_vdest->vnext;
             }
 
-            if(snap_vdest == nullptr || snap_vdest->pointv != dest_vnode)
-            {
+            if(snap_vdest == nullptr || snap_vdest->pointv != dest_vnode){
                 //remove snap_ende
                 esnap_prev->enext = e_snap->enext;
-                Snap_ENode * tmp = e_snap;
-                e_snap = e_snap->enext;
-                delete tmp;
-            }
-            else
-            {
-                e_snap->dest_v = snap_vdest;
-                esnap_prev = e_snap;
-                e_snap = e_snap->enext;
             }
 
-            
+            esnap_prev = e_snap;
+            e_snap = e_snap->enext;
         }
 
         v_snap = v_snap->vnext;
@@ -578,8 +519,6 @@ Snap_VNode* snapshot(){
     return sg_copy_head;
               
 }
-
-        
 
 bool compare_snapshot(snap_vlist *snap1_head, snap_vlist *snap2_head){
     snap_vlist * vsnap1 = snap1_head->vnext;
@@ -624,8 +563,7 @@ bool compare_snapshot(snap_vlist *snap1_head, snap_vlist *snap2_head){
      for( i=1;i<=n;i++){
          AddV(i, NT);
        }
-       
-  for( i=1;i<=m;i++){
+     for( i=1;i<=m;i++){
         
           int u = rand()%n +1;
           int v = rand()%n +1;
@@ -645,9 +583,7 @@ bool compare_snapshot(snap_vlist *snap1_head, snap_vlist *snap2_head){
           
        
       } 
-   } 
-
-
+ }
 
 // create BFSNode
 bfslist_t* createBFSNode(int ecount, vlist_t *n, bfslist_t *p, bfslist_t *next){

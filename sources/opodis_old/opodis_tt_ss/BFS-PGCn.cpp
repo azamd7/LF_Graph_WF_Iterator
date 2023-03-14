@@ -43,7 +43,6 @@
 
 using namespace std;
 
-int NTHREADS;
 
 
 inline int is_marked_ref(long i){
@@ -1118,16 +1117,13 @@ class SnapENode{
     struct ENode * e_ptr; //pointer to the original graph enode
 
     SnapENode(){
-        this->pointv = nullptr;
-        this->enext = nullptr;
+
     }
     SnapENode(int key, SnapENode * enext , struct ENode * e_ptr){
-        this->pointv = nullptr;
         this->key = key;
         this->enext = enext;
         this->e_ptr = e_ptr;
     }
-
 };
 class SnapVNode{
     public:
@@ -1136,21 +1132,10 @@ class SnapVNode{
 	SnapENode *enext; // pointer to the EHead
 	struct VNode * v_ptr ; //ptr to the original graph vnode
     int ecnt;
-    
-    //is_reconstruct is true then end enode is marked
     SnapVNode(){
-        enext = nullptr;
-        vnext = nullptr;
-        v_ptr = nullptr;
-        SnapENode * etail = new SnapENode(INT_MAX , NULL , nullptr);
-        SnapENode * ehead = new SnapENode(INT_MIN , etail , NULL);
-        this->enext = ehead;
-        
 
-        //cout << "Snapvnode created : " << this << " vpathcnt " << v_path_cnt << endl;
     }
     SnapVNode(int key,  SnapVNode *vnext , struct VNode * v_ptr){
-        
         this->key = key;
         this->vnext = vnext;
         this->v_ptr = v_ptr;
@@ -1158,20 +1143,6 @@ class SnapVNode{
         SnapENode * ehead = new SnapENode(INT_MIN , etail , NULL);
         this->enext = ehead;
         this->ecnt = v_ptr->ecount;//we need to compare edge count between 2 snap node
-
-        //cout << "Snapvnode created : " << this << " vpathcnt " << v_path_cnt << endl;
-    }
-
-    ~SnapVNode(){
-        SnapENode * tmp = this->enext;
-        SnapENode * tmp_next ;
-        while(tmp != nullptr){
-            tmp_next = tmp->enext;
-            delete tmp;
-            tmp = tmp_next;
-            
-        }
-       
     }
 };
 
@@ -1188,7 +1159,7 @@ class SnapFSet{
 
 class   SnapHNode {
   public:
-    SnapFSet * buckets;
+    SnapFSet *buckets;
     long size;
     SnapHNode *pred;
     long used;
@@ -1200,7 +1171,10 @@ class SnapHSNode{
   	SnapHNode * next;
 };
 
-
+class SnapFset{
+    public:
+     SnapVNode *head;
+};
 
 class SnapGraph{
     public:
@@ -1214,7 +1188,7 @@ class SnapGraph{
          SnapVNode * vHead = new SnapVNode();
           //assert(newe != NULL);
           vHead ->key = INT_MIN;
-        //  vHead ->vnext = NULL; 
+          vHead ->vnext = NULL; 
 
             vHead->vnext = vTail;
 
@@ -1224,10 +1198,10 @@ class SnapGraph{
   Head = new SnapHSNode();
   SnapHNode  *head = new SnapHNode();//[size];
   SnapVNode * bkt;
-  head->buckets = new SnapFSet[size];
-  for(long i=0; i<size; i++){
-      bkt = initFSet();//new snap VNode;
-      head->buckets[i].head = bkt;
+  head->buckets = new SnapFSet[th*size+1];
+  for(long i=0; i<=size; i++){
+      bkt = initFSet();//new VNode;
+      head->buckets[i].head = bkt;//initFSet();// = new Fset;//[size];
       head->buckets[i].ok = true;
       head->buckets[i].size = 2;
     }
@@ -1239,22 +1213,38 @@ class SnapGraph{
     Head->ct = 1;
    Head->next = head; 
   }
+  void initHNode(SnapHNode *t, int size){
+   //t = new HNode;//[size];
+   t->buckets = new SnapFSet[size];
+   SnapVNode * bkt;
+   for(long i=0; i<size; i++){
+      bkt = initFSet();//new snapVNode;
+      t->buckets[i].head = bkt;//initFSet();// = new Fset;//[size];
+      t->buckets[i].ok = true;
+      t->buckets[i].size = 0;
+      }
+   //newbuckets = initFSet();
+   //head->ok
+   t->size = size;
+   t->used = 0;
+   t->pred = NULL;
+  }
   
  void freeHNode(){
   SnapHNode  *head = this->Head->next;
   SnapVNode *bkt, *bktnext;
     for(long i=0; i<head->size; i++){
       bkt = head->buckets[i].head;
-      while(bkt){
-        bktnext = bkt->vnext;
-        delete bkt;
+      bktnext = bkt->vnext;
+      while(bktnext){
+        free(bkt);
         bkt = bktnext;
+        bktnext = bktnext->vnext;
+        
       }
       
     }
-    delete[] head->buckets;
-    delete Head->next;
-    delete Head;
+    delete[]head->buckets;
   }
 
 
@@ -1276,12 +1266,6 @@ class SnapGraph{
         SnapVNode * prev_snapv = snap_vhead;
         vlist_t * vnode = b.head->vnext.load();
         while(vnode && vnode->key != INT_MAX){
-            if(is_marked_ref((long)vnode->vnext.load()))
-            {
-                //if vnode is marked move to the next available node
-                vnode = (vlist_t*)get_unmarked_ref((long) vnode->vnext.load());
-                continue;
-            }
             //create new snap vnode 
             SnapVNode * new_snap_v = new SnapVNode(vnode->key , snap_vtail ,vnode );
             prev_snapv->vnext = new_snap_v;
@@ -1306,51 +1290,9 @@ class SnapGraph{
 
         }
 
-
-
     }
-
-     for(int i =0 ; i< bucket_size ; i++){
-        snap_b = snap_buckets[i];
-        SnapVNode * snap_vnode =  snap_b.head->vnext;
-        //check if curr snap enode dest vertex exist
-        SnapHNode *t = Head->next;
-        SnapVNode * dest_Vnode;
-        while(snap_vnode && snap_vnode->key!= INT_MAX){
-            SnapENode * prev_snap_enode = snap_vnode->enext;
-            SnapENode * curr_snap_enode = prev_snap_enode->enext;
-            while(curr_snap_enode && curr_snap_enode->key != INT_MAX){
-                int dest_key = curr_snap_enode->key;
-                SnapFSet bucket = t->buckets[dest_key % t->size];
-                int index = dest_key % t->size;
-                dest_Vnode = bucket.head->vnext;
-                while(dest_Vnode && dest_Vnode->key < dest_key){
-                    dest_Vnode = dest_Vnode->vnext;
-                }     
-                if(dest_Vnode->key != dest_key){
-                    //dest vertex not present in snapshot hence delete the enode
-                    prev_snap_enode->enext = curr_snap_enode->enext;
-                    SnapENode * tmp = curr_snap_enode;
-                    curr_snap_enode = tmp -> enext;
-                    delete tmp;
-                }
-                else
-                {
-                    curr_snap_enode->pointv = dest_Vnode;
-                    curr_snap_enode = curr_snap_enode -> enext;
-                }
-                
-            }
-            snap_vnode = snap_vnode->vnext;
-        }
-    }
-
 
   }
- 
-
- 
-
 };
 
 bool compare_ss_collect(SnapGraph * g1 , SnapGraph *g2){

@@ -42,6 +42,7 @@
 #include<stack>
 #include<string>
 #include <unistd.h>
+#include <chrono>
 
 #define vntp "VERTEX NOT PRESENT"
 #define entp "EDGE NOT PRESENT"
@@ -88,10 +89,15 @@ inline long get_marked_ref(long w){
 
 
 // ENode structure
+// ENode structure
 typedef struct ENode{
 	int val; // data
 	atomic<struct VNode *>pointv; // pointer to its vertex
 	atomic<struct ENode *>enext; // pointer to the next ENode
+    ENode(){
+        pointv = {nullptr};
+        enext = {nullptr};
+    }
 }elist_t;
 
 //snap Enode
@@ -103,6 +109,9 @@ typedef struct Snap_ENode{
 
     Snap_ENode(int key){
         this-> key = key;
+        this->enext = nullptr;
+        this->dest_v = nullptr;
+        this->pointe = nullptr;
     }
 
     
@@ -122,13 +131,6 @@ typedef struct Snap_VNode{
 	struct VNode * pointv; // pointer to dest snap_vertex
 	struct Snap_ENode * enext; // pointer to the next ENode
     struct Snap_VNode * vnext;//next snap vertex pointer
-     int * visitedArray;// size same as threads // used to indicate whether the node has beeen visited by the given thread
-    //this will have value as the source node which was being processed when it was visited last
-
-    int * dist_from_source;
-    int * BC_path_indicator;
-    int * path_cnt;//total shortest path from source 
-    int * v_path_cnt;//total shortest path containing BC vertex
     int key;
 
     Snap_VNode(VNode * vnode, Snap_VNode * next_snap_vnode) {
@@ -136,21 +138,12 @@ typedef struct Snap_VNode{
         this -> pointv = vnode;
         this -> vnext = next_snap_vnode;
         Snap_ENode * start_snap_Enode;         
-        this -> enext = start_snap_Enode;
-        this ->visitedArray = new int[NTHREADS]{0};
-        dist_from_source = new int[NTHREADS]{0};
-        BC_path_indicator = new int[NTHREADS]{0};
-        path_cnt = new int[NTHREADS]{0};
-        v_path_cnt = new int[NTHREADS]{0};
+        
     }
 
     Snap_VNode(int key){
         this->vnext = nullptr;
-        this ->visitedArray = new int[NTHREADS]{0};
-        dist_from_source = new int[NTHREADS]{0};
-        BC_path_indicator = new int[NTHREADS]{0};
-        path_cnt = new int[NTHREADS]{0};
-        v_path_cnt = new int[NTHREADS]{0};
+        
     }
 }snap_vlist;
 
@@ -592,12 +585,12 @@ Snap_VNode* snapshot(){
               
 }
 
-/**
+        /**
          * @brief This method returns the number of shortest from source s to destination x excluding the vertex v. It also returns the count amoongst those shortes path that contains the v.
          * 
          */
         void BC_from_source(Snap_VNode *s , int v , int &path_cnt , int &path_cnt_with_v ,int tid ){
-            int source_id = s->key;
+            int source_id = s->pointv->val;
             s->path_cnt[tid] = 1;
             s->dist_from_source[tid] = 0;
             queue <Snap_VNode *> Q;
@@ -687,9 +680,8 @@ Snap_VNode* snapshot(){
             vsnode = vsnode->vnext;
 
             while(vsnode != nullptr){
-                if(vsnode->key != v)
+                if(vsnode->pointv->val != v)
                     this->BC_from_source(vsnode , v, path_cnt, v_path_cnt , tid);
-                    
                 vsnode = vsnode->vnext;
             }
           

@@ -700,9 +700,7 @@ void *thread_funct(void * t_args){
                    
                     
                     float bc = sc->get_BC(node_id , thread_num, &logfile_th,debug);
-                    //cout << bc << endl;
-                    //int key = rand() % max_nodes;
-                    //cout << bc << endl;
+                    
                     if(continue_exec)
                         ops[thread_num]++;
                     

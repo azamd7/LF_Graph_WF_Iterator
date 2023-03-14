@@ -74,19 +74,10 @@ class GraphList {
         head = new Vnode(INT_MIN ,end_Vnode ,NULL);
     }
 
-    ~GraphList(){
-        delete head;
-    }
-
     // creation of new Enode
     Enode * createE(int key , Vnode * v_dest , Enode * enext) {
         Enode * newe = new Enode(key , v_dest, enext);
         return newe;
-    }
-
-    //free the enode
-    void freeE(Enode * enode){
-        delete enode;
     }
 
     // creation of new Vnode
@@ -95,13 +86,6 @@ class GraphList {
         Vnode * newv = new Vnode(key, vnext , EHead);
         return newv;
     }
-
-    void freeV(Vnode *vnode){
-        delete vnode->ehead;
-        delete vnode;
-    }
-
-
 
 
 
@@ -164,6 +148,7 @@ class GraphList {
                     reportVertex(newv , tid , 2, logfile ,debug);// 
                     return true;
                 }
+                delete newv;
             }
         }
     }
@@ -508,46 +493,8 @@ void print_graph(fstream *logfile , Vnode * graph_headv){
     (*logfile) << "Tail" << endl;
     (*logfile) << "Graph(End)-------" << endl;
 }
-/**
- * @brief Print initial graph
- * 
- * @param logfile 
- * @param graph_headv 
- * @return *** void 
- */
-void print_graph_init(fstream *logfile , Vnode * graph_headv){
-    //(*logfile) << "Graph ----------" << endl;
-    Vnode * vnode = graph_headv->vnext;
-    while(vnode != end_Vnode){
-        string val = to_string(vnode->val);
-        bool is_marked = is_marked_ref((long)vnode->vnext.load());
-        if(is_marked){
-            val = "!" + val;
-        }
-        (*logfile) << val ;
 
-        Enode *enode = vnode->ehead.load()->enext;
-        while(enode != end_Enode){
-            string e_val = to_string(enode->val);
-            bool e_is_marked = is_marked_ref((long)enode->enext.load());
-            if (e_is_marked){
-                e_val = "!" + e_val;
-            }
-            e_val = " " + e_val ;
-            (*logfile) << e_val ;
-            enode = enode -> enext;
-            
-        }
-        (*logfile) << endl;
-        //(*logfile) << "|" <<endl;
-        vnode = vnode->vnext;
-
-    }
-    //(*logfile) << "Tail" << endl;
-    //(*logfile) << "Graph(End)-------" << endl;
-}
-
-atomic<bool> continue_exec;
+atomic<bool> cont_exec;
 
 /**
  * @brief paramteter that are to be passed on to the threads
@@ -560,29 +507,23 @@ struct thread_args{
     bool debug ;  
     int max_nodes;
     int max_threads;
-    double * ops;
     double * max_times;
-  double * avg_times;
-    
+    double * avg_times;
     vector<double> * dist_prob;
     
 };
-
-
-
 
 
 /**
  * @brief 
  * 
  * prob_arr will denote prob of different operations
- * 0->add vertex
- * 1->delete vertex
- * 2->add edge           
- * 3->delete edge
- * 4->contains edge
- * 5->contains vertex
- * 6->snapshot
+ * 0->Add vertex
+ * 1->Remove vertex
+ * 2->Add edge
+ * 3->Delete edge
+ * 4->snapshot
+ * 
  * 
  * @param t_args 
  * @return ** void* 
@@ -596,13 +537,11 @@ void *thread_funct(void * t_args){
     int max_nodes = ((struct thread_args *)t_args)->max_nodes;
     int max_threads = ((struct thread_args *)t_args)->max_threads;
     //int prob_arr[4] = ((struct thread_args *)t_args)->prob_arr;
-    double * ops = ((struct thread_args *)t_args)->ops;
     double * avg_times = ((struct thread_args *)t_args)->avg_times;
     double * max_times = ((struct thread_args *)t_args)->max_times;
-        vector<double> tts;//list of time taken for snapshot
     vector<double> * dist_prob = ((struct thread_args *)t_args)->dist_prob;
 
-    
+    vector<double> tts;//list of time taken for snapshot
     
     fstream logfile_th;
     if(debug){ 
@@ -612,11 +551,12 @@ void *thread_funct(void * t_args){
     random_device rd;
     mt19937 gen(rd());
     discrete_distribution<> d(dist_prob->begin() , dist_prob->end());
-    int op_index;
-    while(continue_exec){
-       
+    while(cont_exec){
+        random_device rd;
+        mt19937 gen(rd());
+        discrete_distribution<> d(dist_prob->begin() , dist_prob->end());
      
-        op_index = d(gen);
+        int op_index = d(gen);
         switch(op_index) {
         case 0://add vertex
             {
@@ -624,48 +564,40 @@ void *thread_funct(void * t_args){
                 if(debug) 
                     logfile_th << " thread id : " << thread_num << "Add vertex  : " << rand_node_id << endl;
                 graph->AddVertex(rand_node_id,thread_num,&logfile_th,debug );
-                //if(continue_exec)
-                //    ops[thread_num]++;
             }
             break;
         case 1:
             // delete vertex
             {
-                int rand_node_id = rand() % max_nodes + 1;   
+                int rand_node_id = rand() % max_nodes + 1;    
                 if(debug)
                     logfile_th << " thread id : " << thread_num << "Delete vertex : " << rand_node_id << endl;
                 graph->RemoveVertex(rand_node_id,thread_num,&logfile_th, debug);
-                //if(continue_exec)
-                //    ops[thread_num]++;
             }
             break;
         case 2:
             // add edge
             {
                 int rand_source = rand() % max_nodes + 1; 
-                int rand_dest = rand() % max_nodes + 1;
+                int rand_dest = rand() % max_nodes + 1; 
                 while(rand_dest == rand_source){
-                    rand_dest = rand() % max_nodes + 1;
+                    rand_dest = rand() % max_nodes + 1; 
                 }
                 if(debug)   
                     logfile_th << " thread id : " << thread_num << "Add edge : " << rand_source << " " << rand_dest << endl;
                 graph->AddEdge(rand_source , rand_dest , thread_num,&logfile_th,debug);
-                //if(continue_exec)
-                //    ops[thread_num]++;
             }
             break;
         case 3:
             //delete edge
             {   int rand_source = rand() % max_nodes + 1; 
-                int rand_dest = rand() % max_nodes + 1;
+                int rand_dest = rand() % max_nodes + 1; 
                 while(rand_dest == rand_source){
-                    rand_dest = rand() % max_nodes + 1;
+                    rand_dest = rand() % max_nodes + 1; 
                 }
                 if(debug)
                     logfile_th << " thread id : " << thread_num << " Delete edge : " << rand_source << " " << rand_dest  << endl;
                 graph->RemoveE(rand_source , rand_dest , thread_num,&logfile_th,debug);
-                //if(continue_exec)
-                //    ops[thread_num]++;
             }
             break;
         case 4:
@@ -678,57 +610,43 @@ void *thread_funct(void * t_args){
                 if(debug)
                     logfile_th << " thread id : " << thread_num << " Contians Edge : " << rand_source << " " << rand_dest  << endl;
                 graph->ContainsE(rand_source , rand_dest , thread_num,&logfile_th,debug);
-                //if(continue_exec)
-                //    ops[thread_num]++;
             }
             break;
         case 5:
-            //contains vertex
-            {   int node_id = rand() % max_nodes + 1; 
-                
-                if(debug)
-                    logfile_th << " thread id : " << thread_num << " Contains vertex : " << node_id  << endl;
-                graph->ContainsV(node_id , thread_num,&logfile_th,debug);
-                //if(continue_exec)
-                //    ops[thread_num]++;
-            }
+        //contains vertex
+        {   int node_id = rand() % max_nodes + 1; 
+            
+            if(debug)
+                logfile_th << " thread id : " << thread_num << " Contains vertex : " << node_id  << endl;
+            graph->ContainsV(node_id , thread_num,&logfile_th,debug);
+        }
         break;
         case 6:
             //snapshot
-            {       
-                    
-                    chrono::high_resolution_clock::time_point startT = chrono::high_resolution_clock::now();
-                    //print_graph(&logfile_th , graph->head);
-                    SnapCollector * sc =  takeSnapshot(graph->head , max_threads, &logfile_th,debug);
-                    //int key = rand() % max_nodes;
-                    //sc->getBFS(&logfile_th , debug , thread_num, key );
-                    
-                    int node_id = rand() % max_nodes + 1; 
-                   
-                    float bc = sc->get_BC(node_id , thread_num, &logfile_th,debug);
-                    chrono::high_resolution_clock::time_point endT = chrono::high_resolution_clock::now();
-                    double timeTaken = chrono::duration_cast<chrono::microseconds>(endT-startT).count() ;
-
+            {
+                logfile_th << " thread id : " << thread_num << " Collecting snapshot"  << endl;
+                //print_graph(&logfile_th , graph->head);
+                chrono::high_resolution_clock::time_point startT = chrono::high_resolution_clock::now();
+                SnapCollector * sc =  takeSnapshot(graph->head , max_threads, &logfile_th,debug);
+                chrono::high_resolution_clock::time_point endT = chrono::high_resolution_clock::now();
+                double timeTaken = chrono::duration_cast<chrono::microseconds>(endT-startT).count() ;
+                if(cont_exec){
                     tts.push_back(timeTaken);
                     if (max_times[thread_num] < timeTaken){
                         max_times[thread_num] = timeTaken;
                     }
-                    
-                    if(debug){ 
-                        
-                        sc->print_snap_graph(&logfile_th);
-                    }
-                
-               
+                }
+                if(debug){
+                    logfile_th << "TimeTaken : " << timeTaken << endl; 
+                    sc->print_snap_graph(&logfile_th);
+                }
+
             }
             break;
         
        
         }
     }
-    if(debug)
-        logfile_th.close();
-    
     //calculate average of all the timetaken
     if(tts.size() > 0){
         double total_tts = 0;
@@ -738,101 +656,12 @@ void *thread_funct(void * t_args){
         avg_times[thread_num] = total_tts / tts.size();
 
     }
-    return nullptr;
-
-}
-
-
-typedef struct init_graph_thread_args{
-    GraphList *graph ;
-    bool debug ;  
-    bool *add_nodes;
-    int max_vertices;
-    int thread_num ;
-    
-}init_gph_t_args;
-
-
-atomic<int> init_nodes;
-atomic<int> init_edges;
-
-void *init_graph_thread_funct(void * t_args){
-
-    GraphList *graph = ((init_graph_thread_args *)t_args)->graph;
-    bool debug =((init_graph_thread_args *)t_args)->debug;
-    bool  *add_nodes = ((init_graph_thread_args *)t_args)->add_nodes;
-    int thread_num = ((init_graph_thread_args *)t_args)->thread_num;
-    int max_vertices = ((init_graph_thread_args *)t_args)->max_vertices;
-
-    
-    fstream logfile_th;
-    if(debug){ 
-        string logFileName = "../../log/log_" +  to_string(thread_num) +".txt";
-        logfile_th.open(logFileName,ios::out);
-    }
-    int remain_nodes = init_nodes ,nodes_added = 0;
-    int remain_edges = init_edges ,edges_added = 0;
-    
-    while(true){
-       
-     
-        int op_index = *add_nodes? 0 : 1;
-        switch(op_index) {
-            case 0://add vertex
-                {
-                    int nodeid = rand() % max_vertices;
-                    bool added = graph->AddVertex(nodeid , -1 , &logfile_th , debug);
-                    while(!added){
-                        nodeid = rand() % max_vertices;
-                        added = graph->AddVertex(nodeid , -1 , &logfile_th , debug);
-                    }
-                    nodes_added++;
-                    remain_nodes = --init_nodes;
-                    if(remain_nodes <= 0){
-                        *add_nodes = false;
-                    }
-                }
-
-                break;
-            case 1:
-                // add edge
-                {
-                    int source = rand() % max_vertices;
-                    int dest = rand() % max_vertices;
-                    while(dest ==  source){
-                        dest = rand() % max_vertices;
-                    }
-                    int ret = graph->AddEdge(source ,dest , -1 , &logfile_th , debug);
-                    while(ret != 3){
-                        source = rand() % max_vertices;
-                        dest = rand() % max_vertices;
-                        while(dest ==  source){
-                            dest = rand() % max_vertices;
-                        }
-                        ret = graph->AddEdge(source ,dest , -1 , &logfile_th , debug);
-                    }
-                    edges_added++;
-                    remain_edges = --init_edges;
-                }
-                break;
-            
-        }
-        
-        if(remain_edges <= 0){
-            break;
-        }
-
-    }
     if(debug)
-    {
         logfile_th.close();
-    }
-    
-    
+
     return nullptr;
 
 }
-
 
 GraphList * create_graph(int init_vertices , int init_edges){
     GraphList * graph = new GraphList();
@@ -842,8 +671,7 @@ GraphList * create_graph(int init_vertices , int init_edges){
     while(init_vertices--){
         int nodeid = rand() % max_vertices;
         bool ret = graph->AddVertex(nodeid , -1 , nullptr , false);
-        while(!ret){
-            nodeid = rand() % max_vertices;
+        while(ret){
             ret = graph->AddVertex(nodeid , -1 , nullptr , false);
         }
     }
@@ -868,41 +696,22 @@ GraphList * create_graph(int init_vertices , int init_edges){
     return graph;
 }
 
-GraphList * create_graph_from_file(string file){
-    GraphList * graph = new GraphList();
-    ifstream cinn(file);
-    long n,m;
-    int u, v, v_;
-    cinn>>n>>m;
-  
-    int i,j, e=0;
 
-    for(i=1;i<=2*n;i++){
-        graph->AddVertex(i , -1 , nullptr , false);
-    }
-    for(j=1; j<=m; j = j+1){
-	    cinn>>u>>v;
-        graph->AddEdge(u,v , -1 , nullptr , false);
-	    e++;
-      }   
-    return graph;
-  //cout<<"Edge:"<<e<<endl;
-} 
 // class GRAPH;
 
 
 int main(int argc, char** argv) {
     // abc
-    string logFileName = "../../log/log_";
-    
+    string logFileName = "../log/logfileParr";
+    string opFileName = logFileName + ".txt";
     //will be used in script
-    int num_of_threads = 10;
+    int num_of_threads = 5;
     int test_duration = 10;
-    int initial_vertices = 10000;
-    int initial_edges = 2*(int)pow(10, 4);
+    int initial_vertices = (int)pow(10 , 4);
+    int initial_edges = 2 * (int)pow(10, 4);
  
     bool debug = false;
-    vector<double> dist_prob = {1,1,1,1,1,1,1,1};
+    vector<double> dist_prob = {1,1,1,1,1,1,1};
 
     
 
@@ -912,77 +721,56 @@ int main(int argc, char** argv) {
         test_duration = stoi(argv[3]);
         initial_vertices = stoi(argv[4]);
         initial_edges = stoi(argv[5]);
-        if(argc > 8){
+        if(argc > 7){
             //read dist probabilities
             for(int i = 0;i< 7 ; i++){
-                dist_prob[i] = stoi(argv[7+i]);
+                dist_prob[i] = stoi(argv[6+i]);
             }
             
         }
-        if(argc == 15){
-            if(argv[14][0] == 'D'){
+        else if(argc == 7){
+			 if(argv[6] == "debug"){
+            	debug = true;
+       		 }
+		}
+        
+        if(argc == 14){
+            if(argv[13] == "debug"){
             	debug = true;
        		}
         }
 	}
-    string opFileName = logFileName + ".txt";
+
     fstream opfile;
     opfile.open(opFileName,ios::out);
-    total_threads = num_of_threads;
     
-    //opfile << logFileName << endl;
-    //opfile << num_of_threads << endl;
-    //opfile << test_duration << endl;
-    //opfile << initial_vertices << endl;
-    //opfile << initial_edges <<endl;
-    //opfile << dist_prob[0] << " " << dist_prob[1] << " " << dist_prob[2] << " " << dist_prob[3] << " " << dist_prob[4] <<" " << dist_prob[5] <<" " << dist_prob[6]  << endl;
-    //opfile << debug << endl;
+    opfile << logFileName << endl;
+    opfile << num_of_threads << endl;
+    opfile << test_duration << endl;
+    opfile << initial_vertices << endl;
+    opfile << initial_edges <<endl;
+    opfile << dist_prob[0] << " " << dist_prob[1] << " " << dist_prob[2] << " " << dist_prob[3] << " " << dist_prob[4]  << endl;
+    opfile << debug << endl;
 
-    //init_edges.store(initial_edges);
-    //init_nodes.store(initial_vertices);
-    //bool * add_nodes  = new bool(true);
-    ////GraphList * graph = create_graph(initial_vertices , initial_edges);
-    ////print_graph_init(&opfile , graph->head);
-    //GraphList * graph = new GraphList();
-    //int max_threads = 12;
-    //init_gph_t_args th_args[max_threads];
-    //pthread_t thds[max_threads];
-    //for( int i=0;i <max_threads;i++){
+    GraphList * graph = create_graph(initial_vertices ,initial_edges);
+    
 
-        
-    //    th_args[i].graph = graph;
-    //    th_args[i].debug = debug;
-    //    th_args[i].max_vertices = 10 * initial_vertices;
-    //    th_args[i].add_nodes = add_nodes;
-    //    th_args[i].thread_num = i;
- 
-    //    pthread_create(&thds[i], NULL, init_graph_thread_funct, &th_args[i]);
-        
-    //}
 
-    //for(int i=0 ; i< max_threads;i++){
-    //    pthread_join(thds[i], NULL);
-    //}
-    //print_graph_init(&opfile , graph->head);
 
-    //GraphList * graph = create_graph(initial_vertices ,initial_edges);
-    GraphList * graph = create_graph_from_file(argv[6]);
+    //SnapCollector * sc =  takeSnapshot(graph->head , 2);
     
     //sc->print_snap_graph(&logfile);
     //printf(graph->ContainsE(5,4,1) != 2? "False\n" : "True\n");
     struct thread_args t_args[num_of_threads];
     pthread_t threads[num_of_threads];
     
-    //List of throughput from each thread
-    double * ops = new double[num_of_threads];
-
-    continue_exec.store(true);
+    double * max_times = new double[num_of_threads];
+    double * avg_times = new double[num_of_threads];
+    cont_exec.store(true);
     //cout << "End snap Enode " << end_snap_Enode << endl;
     //cout << "Marked End snap Enode " << (Snap_Enode *)get_marked_ref((long) end_snap_Enode) << endl;
     //cout << "End snap Vnode " << end_snap_Vnode << endl;
     //cout << "Marked End snap Vnode " << (Snap_Vnode*) get_marked_ref((long)end_snap_Vnode) << endl;
-    double * max_times = new double[num_of_threads];
-    double * avg_times = new double[num_of_threads];
     for( int i=0;i < num_of_threads ;i++){
 
         
@@ -993,16 +781,14 @@ int main(int argc, char** argv) {
         t_args[i].max_nodes = 10 * initial_vertices;
         t_args[i].max_threads = num_of_threads;
         t_args[i].debug = debug;
-        t_args[i].ops = ops;
         t_args[i].max_times = max_times;
         t_args[i].avg_times = avg_times;
-        
         t_args[i].dist_prob = &dist_prob;
         pthread_create(&threads[i], NULL, thread_funct, &t_args[i]);
         
     }
     sleep(test_duration);
-    continue_exec.store(false);
+    cont_exec.store(false);
     for(int i=0 ; i< num_of_threads;i++){
         pthread_join(threads[i], NULL);
     }
@@ -1020,12 +806,13 @@ int main(int argc, char** argv) {
 
     avg_time = avg_time / num_of_threads;
 
+    opfile << "Avg Time : " << avg_time << endl;
+    opfile << "Max Time : " << max_time << endl;
 
     cout << avg_time << fixed << endl;
     cout << max_time << fixed << endl;
 
-    
     opfile.close();
+
     return 0;
 }
-

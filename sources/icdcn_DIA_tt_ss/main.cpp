@@ -170,7 +170,7 @@ void* pthread_call(void* t)
                         vhead2 = G1.snapshot();
                     
                     }
-                    G1.get_diameter( threadnum , vhead2);
+                    G1.get_diameter( vhead2);
                     //if(cont_exec)
                     //    ops[threadnum]++;
                     chrono::high_resolution_clock::time_point endT = chrono::high_resolution_clock::now();

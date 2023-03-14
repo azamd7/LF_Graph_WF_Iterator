@@ -561,8 +561,6 @@ struct thread_args{
     int max_nodes;
     int max_threads;
     double * ops;
-    double * max_times;
-  double * avg_times;
     
     vector<double> * dist_prob;
     
@@ -597,9 +595,7 @@ void *thread_funct(void * t_args){
     int max_threads = ((struct thread_args *)t_args)->max_threads;
     //int prob_arr[4] = ((struct thread_args *)t_args)->prob_arr;
     double * ops = ((struct thread_args *)t_args)->ops;
-    double * avg_times = ((struct thread_args *)t_args)->avg_times;
-    double * max_times = ((struct thread_args *)t_args)->max_times;
-        vector<double> tts;//list of time taken for snapshot
+    
     vector<double> * dist_prob = ((struct thread_args *)t_args)->dist_prob;
 
     
@@ -624,8 +620,8 @@ void *thread_funct(void * t_args){
                 if(debug) 
                     logfile_th << " thread id : " << thread_num << "Add vertex  : " << rand_node_id << endl;
                 graph->AddVertex(rand_node_id,thread_num,&logfile_th,debug );
-                //if(continue_exec)
-                //    ops[thread_num]++;
+                if(continue_exec)
+                    ops[thread_num]++;
             }
             break;
         case 1:
@@ -635,8 +631,8 @@ void *thread_funct(void * t_args){
                 if(debug)
                     logfile_th << " thread id : " << thread_num << "Delete vertex : " << rand_node_id << endl;
                 graph->RemoveVertex(rand_node_id,thread_num,&logfile_th, debug);
-                //if(continue_exec)
-                //    ops[thread_num]++;
+                if(continue_exec)
+                    ops[thread_num]++;
             }
             break;
         case 2:
@@ -650,8 +646,8 @@ void *thread_funct(void * t_args){
                 if(debug)   
                     logfile_th << " thread id : " << thread_num << "Add edge : " << rand_source << " " << rand_dest << endl;
                 graph->AddEdge(rand_source , rand_dest , thread_num,&logfile_th,debug);
-                //if(continue_exec)
-                //    ops[thread_num]++;
+                if(continue_exec)
+                    ops[thread_num]++;
             }
             break;
         case 3:
@@ -664,8 +660,8 @@ void *thread_funct(void * t_args){
                 if(debug)
                     logfile_th << " thread id : " << thread_num << " Delete edge : " << rand_source << " " << rand_dest  << endl;
                 graph->RemoveE(rand_source , rand_dest , thread_num,&logfile_th,debug);
-                //if(continue_exec)
-                //    ops[thread_num]++;
+                if(continue_exec)
+                    ops[thread_num]++;
             }
             break;
         case 4:
@@ -678,8 +674,8 @@ void *thread_funct(void * t_args){
                 if(debug)
                     logfile_th << " thread id : " << thread_num << " Contians Edge : " << rand_source << " " << rand_dest  << endl;
                 graph->ContainsE(rand_source , rand_dest , thread_num,&logfile_th,debug);
-                //if(continue_exec)
-                //    ops[thread_num]++;
+                if(continue_exec)
+                    ops[thread_num]++;
             }
             break;
         case 5:
@@ -689,30 +685,25 @@ void *thread_funct(void * t_args){
                 if(debug)
                     logfile_th << " thread id : " << thread_num << " Contains vertex : " << node_id  << endl;
                 graph->ContainsV(node_id , thread_num,&logfile_th,debug);
-                //if(continue_exec)
-                //    ops[thread_num]++;
+                if(continue_exec)
+                    ops[thread_num]++;
             }
         break;
         case 6:
             //snapshot
-            {       
-                    
-                    chrono::high_resolution_clock::time_point startT = chrono::high_resolution_clock::now();
+            {
                     //print_graph(&logfile_th , graph->head);
                     SnapCollector * sc =  takeSnapshot(graph->head , max_threads, &logfile_th,debug);
                     //int key = rand() % max_nodes;
                     //sc->getBFS(&logfile_th , debug , thread_num, key );
-                    
-                    int node_id = rand() % max_nodes + 1; 
                    
-                    float bc = sc->get_BC(node_id , thread_num, &logfile_th,debug);
-                    chrono::high_resolution_clock::time_point endT = chrono::high_resolution_clock::now();
-                    double timeTaken = chrono::duration_cast<chrono::microseconds>(endT-startT).count() ;
-
-                    tts.push_back(timeTaken);
-                    if (max_times[thread_num] < timeTaken){
-                        max_times[thread_num] = timeTaken;
-                    }
+                    
+                    float bc = sc->get_diameter( thread_num, debug, &logfile_th);
+                    //cout << bc << endl;
+                    //int key = rand() % max_nodes;
+                    //cout << bc << endl;
+                    if(continue_exec)
+                        ops[thread_num]++;
                     
                     if(debug){ 
                         
@@ -729,15 +720,7 @@ void *thread_funct(void * t_args){
     if(debug)
         logfile_th.close();
     
-    //calculate average of all the timetaken
-    if(tts.size() > 0){
-        double total_tts = 0;
-        for(double tt : tts){
-            total_tts += tt;
-        }
-        avg_times[thread_num] = total_tts / tts.size();
-
-    }
+    
     return nullptr;
 
 }
@@ -981,8 +964,6 @@ int main(int argc, char** argv) {
     //cout << "Marked End snap Enode " << (Snap_Enode *)get_marked_ref((long) end_snap_Enode) << endl;
     //cout << "End snap Vnode " << end_snap_Vnode << endl;
     //cout << "Marked End snap Vnode " << (Snap_Vnode*) get_marked_ref((long)end_snap_Vnode) << endl;
-    double * max_times = new double[num_of_threads];
-    double * avg_times = new double[num_of_threads];
     for( int i=0;i < num_of_threads ;i++){
 
         
@@ -994,8 +975,6 @@ int main(int argc, char** argv) {
         t_args[i].max_threads = num_of_threads;
         t_args[i].debug = debug;
         t_args[i].ops = ops;
-        t_args[i].max_times = max_times;
-        t_args[i].avg_times = avg_times;
         
         t_args[i].dist_prob = &dist_prob;
         pthread_create(&threads[i], NULL, thread_funct, &t_args[i]);
@@ -1007,24 +986,30 @@ int main(int argc, char** argv) {
         pthread_join(threads[i], NULL);
     }
 
-    double max_time = 0;
-    double avg_time = 0;
-
+    double max_cnt = 0;
+    double tot_cnt = 0;
+    double avg_cnt = 0;
     for( int i = 0;i < num_of_threads ; i++){
         //check max
-        if(max_time < max_times[i]){
-            max_time = max_times[i];
+        if(max_cnt < ops[i]){
+            max_cnt = ops[i];
         }
-        avg_time += avg_times[i];
+        
+        tot_cnt += ops[i];
     }
+    avg_cnt = tot_cnt * 1.0 /( test_duration);
+    max_cnt = max_cnt * 1.0 /( test_duration);
 
-    avg_time = avg_time / num_of_threads;
+    opfile << "Avg  : " << avg_cnt <<fixed << endl;
+    opfile << "Max  : " << max_cnt <<fixed << endl;
 
+    cout << avg_cnt << fixed << endl;
+    cout << max_cnt << fixed << endl;
 
-    cout << avg_time << fixed << endl;
-    cout << max_time << fixed << endl;
-
-    
+    delete end_Enode;
+    delete end_Vnode;
+    delete end_snap_Enode;
+    delete end_snap_Vnode;
     opfile.close();
     return 0;
 }

@@ -330,7 +330,7 @@ void* pthread_call(void* t)
 
                     int node_id = (rand() % (vertexID))+1; 
                     
-                        
+                    
                     float bc = ss2->get_BC(node_id , threadnum , &logfile_th);
                     
                     chrono::high_resolution_clock::time_point endT = chrono::high_resolution_clock::now();

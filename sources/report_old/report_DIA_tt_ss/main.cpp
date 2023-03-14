@@ -696,16 +696,19 @@ void *thread_funct(void * t_args){
         case 6:
             //snapshot
             {       
-                    
                     chrono::high_resolution_clock::time_point startT = chrono::high_resolution_clock::now();
+
+                    logfile_th << " thread id : " << thread_num << " Collecting snapshot"  << endl;
                     //print_graph(&logfile_th , graph->head);
                     SnapCollector * sc =  takeSnapshot(graph->head , max_threads, &logfile_th,debug);
                     //int key = rand() % max_nodes;
                     //sc->getBFS(&logfile_th , debug , thread_num, key );
-                    
-                    int node_id = rand() % max_nodes + 1; 
                    
-                    float bc = sc->get_BC(node_id , thread_num, &logfile_th,debug);
+                    
+                    float bc = sc->get_diameter(thread_num, &logfile_th,debug);
+                    //cout << bc << endl;
+                    //int key = rand() % max_nodes;
+                    //cout << bc << endl;
                     chrono::high_resolution_clock::time_point endT = chrono::high_resolution_clock::now();
                     double timeTaken = chrono::duration_cast<chrono::microseconds>(endT-startT).count() ;
 

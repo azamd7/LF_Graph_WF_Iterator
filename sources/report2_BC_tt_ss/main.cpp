@@ -30,7 +30,7 @@
 
 #include <algorithm>
 
-#include "snapcollector.h"
+#include "snapcollector2.h"
 
 #include <math.h>
 
@@ -705,7 +705,11 @@ void *thread_funct(void * t_args){
                     
                     int node_id = rand() % max_nodes + 1; 
                    
-                    float bc = sc->get_BC(node_id , thread_num, &logfile_th,debug);
+                    
+                    //float bc = sc->get_BC(node_id , thread_num, &logfile_th,debug);
+                    //cout << bc << endl;
+                    //int key = rand() % max_nodes;
+                    //cout << bc << endl;
                     chrono::high_resolution_clock::time_point endT = chrono::high_resolution_clock::now();
                     double timeTaken = chrono::duration_cast<chrono::microseconds>(endT-startT).count() ;
 

@@ -93,6 +93,10 @@ typedef struct ENode{
 	int val; // data
 	atomic<struct VNode *>pointv; // pointer to its vertex
 	atomic<struct ENode *>enext; // pointer to the next ENode
+    ENode(){
+        pointv = {nullptr};
+        enext = {nullptr};
+    }
 }elist_t;
 
 //snap Enode
@@ -104,6 +108,9 @@ typedef struct Snap_ENode{
 
     Snap_ENode(int key){
         this-> key = key;
+        this->enext = nullptr;
+        this->dest_v = nullptr;
+        this->pointe = nullptr;
     }
 
     
@@ -116,20 +123,20 @@ typedef struct VNode{
 	atomic<struct VNode *>vnext; // pointer to the next VNode
 	atomic<struct ENode *>enext; // pointer to the EHead
 	atomic <int> ecount; // counter for edge operations
-	int *visitedArray; // size same as # threads
+	int visitedArray; // size same as # threads
 }vlist_t;
 
 typedef struct Snap_VNode{
 	struct VNode * pointv; // pointer to dest snap_vertex
 	struct Snap_ENode * enext; // pointer to the next ENode
     struct Snap_VNode * vnext;//next snap vertex pointer
-     int * visitedArray;// size same as threads // used to indicate whether the node has beeen visited by the given thread
+     int visitedArray;// size same as threads // used to indicate whether the node has beeen visited by the given thread
     //this will have value as the source node which was being processed when it was visited last
 
-    int * dist_from_source;
-    int * BC_path_indicator;
-    int * path_cnt;//total shortest path from source 
-    int * v_path_cnt;//total shortest path containing BC vertex
+    int dist_from_source;
+    int BC_path_indicator;
+    int path_cnt;//total shortest path from source 
+    int v_path_cnt;//total shortest path containing BC vertex
     int key;
 
     Snap_VNode(VNode * vnode, Snap_VNode * next_snap_vnode) {
@@ -138,20 +145,20 @@ typedef struct Snap_VNode{
         this -> vnext = next_snap_vnode;
         Snap_ENode * start_snap_Enode;         
         this -> enext = start_snap_Enode;
-        this ->visitedArray = new int[NTHREADS]{0};
-        dist_from_source = new int[NTHREADS]{0};
-        BC_path_indicator = new int[NTHREADS]{0};
-        path_cnt = new int[NTHREADS]{0};
-        v_path_cnt = new int[NTHREADS]{0};
+        this ->visitedArray = 0;
+        dist_from_source = 0;
+        BC_path_indicator = 0;
+        path_cnt = 0;
+        v_path_cnt = 0;
     }
 
     Snap_VNode(int key){
         this->vnext = nullptr;
-        this ->visitedArray = new int[NTHREADS]{0};
-        dist_from_source = new int[NTHREADS]{0};
-        BC_path_indicator = new int[NTHREADS]{0};
-        path_cnt = new int[NTHREADS]{0};
-        v_path_cnt = new int[NTHREADS]{0};
+        tthis ->visitedArray = 0;
+        dist_from_source = 0;
+        BC_path_indicator = 0;
+        path_cnt = 0;
+        v_path_cnt = 0;
     }
 }snap_vlist;
 
@@ -593,14 +600,14 @@ Snap_VNode* snapshot(){
               
 }
 
-/**
+        /**
          * @brief This method returns the number of shortest from source s to destination x excluding the vertex v. It also returns the count amoongst those shortes path that contains the v.
          * 
          */
-        void BC_from_source(Snap_VNode *s , int v , int &path_cnt , int &path_cnt_with_v ,int tid ){
-            int source_id = s->key;
+        void BC_from_source(Snap_VNode *s , int v , int &path_cnt , int &path_cnt_with_v ){
+            int source_id = s->pointv->val;
             s->path_cnt[tid] = 1;
-            s->dist_from_source[tid] = 0;
+            s->dist_from_source = 0;
             queue <Snap_VNode *> Q;
             Q.push(s);
 
@@ -608,7 +615,7 @@ Snap_VNode* snapshot(){
             while(!Q.empty()){
                 Snap_VNode * pred_v = Q.front();
                 
-                int pred_v_dist = pred_v->dist_from_source[tid];
+                int pred_v_dist = pred_v->dist_from_source;
                 Q.pop();
                 eHead = pred_v->enext;
                 for(Snap_ENode * itNode = eHead->enext; itNode!= nullptr; itNode = itNode ->enext){ 
@@ -619,16 +626,16 @@ Snap_VNode* snapshot(){
                    
                     if(itNode->key != v){//if its not the BC vertex
 
-                        if(dest_v->visitedArray[tid] == source_id){//destination vertex is already visited
+                        if(dest_v->visitedArray == source_id){//destination vertex is already visited
                         
-                            if(dest_v->dist_from_source[tid] == pred_v_dist + 1){//check if the path length from source is same
+                            if(dest_v->dist_from_source == pred_v_dist + 1){//check if the path length from source is same
                             //another shortest path from source to dest
-                            path_cnt += pred_v->path_cnt[tid];
-                            dest_v->path_cnt[tid] += pred_v->path_cnt[tid];
-                            if(pred_v->BC_path_indicator[tid] == source_id){//there is path to pred_v that passes through BC v
-                                path_cnt_with_v += pred_v->v_path_cnt[tid];//add pred vertex shortest paths
-                                dest_v->v_path_cnt[tid] += pred_v->v_path_cnt[tid];
-                                dest_v->BC_path_indicator[tid] = source_id;
+                            path_cnt += pred_v->path_cnt;
+                            dest_v->path_cnt += pred_v->path_cnt;
+                            if(pred_v->BC_path_indicator == source_id){//there is path to pred_v that passes through BC v
+                                path_cnt_with_v += pred_v->v_path_cnt;//add pred vertex shortest paths
+                                dest_v->v_path_cnt += pred_v->v_path_cnt;
+                                dest_v->BC_path_indicator = source_id;
                             }
                                 
                             }
@@ -637,14 +644,14 @@ Snap_VNode* snapshot(){
                         }
                         else//if the vertex has not been visited
                         {
-                            dest_v->visitedArray[tid] = source_id;
-                            dest_v->dist_from_source[tid] = pred_v_dist + 1;
-                            path_cnt += pred_v->path_cnt[tid];
-                            dest_v->path_cnt[tid] = pred_v->path_cnt[tid];
-                            if(pred_v->BC_path_indicator[tid] == source_id){//there is path to pred_v that passes through BC v
-                                path_cnt_with_v += pred_v->v_path_cnt[tid];//add pred vertex shortest paths
-                                dest_v->v_path_cnt[tid] = pred_v->v_path_cnt[tid];
-                                dest_v->BC_path_indicator[tid] = source_id;
+                            dest_v->visitedArray = source_id;
+                            dest_v->dist_from_source = pred_v_dist + 1;
+                            path_cnt += pred_v->path_cnt;
+                            dest_v->path_cnt = pred_v->path_cnt;
+                            if(pred_v->BC_path_indicator == source_id){//there is path to pred_v that passes through BC v
+                                path_cnt_with_v += pred_v->v_path_cnt;//add pred vertex shortest paths
+                                dest_v->v_path_cnt = pred_v->v_path_cnt;
+                                dest_v->BC_path_indicator = source_id;
                             }
                             Q.push(dest_v);
 
@@ -654,19 +661,19 @@ Snap_VNode* snapshot(){
                     else
                     {   //If the dest vnode is a BC vertex
                         //no need to add to final path cnt or final path cnt through v
-                        if(dest_v->visitedArray[tid] != source_id )//the node hasnt been visited yet
+                        if(dest_v->visitedArray != source_id )//the node hasnt been visited yet
                         {   
-                            dest_v->visitedArray[tid] = source_id;
-                            dest_v->BC_path_indicator[tid] = source_id;
-                            dest_v->dist_from_source[tid] =  pred_v_dist + 1;
-                            dest_v->path_cnt[tid] = pred_v->path_cnt[tid];
-                            dest_v->v_path_cnt[tid] = pred_v->path_cnt[tid];
+                            dest_v->visitedArray = source_id;
+                            dest_v->BC_path_indicator = source_id;
+                            dest_v->dist_from_source =  pred_v_dist + 1;
+                            dest_v->path_cnt = pred_v->path_cnt;
+                            dest_v->v_path_cnt = pred_v->path_cnt;
                             Q.push(dest_v);
                         }
-                        else if(dest_v->dist_from_source[tid] == pred_v_dist + 1){
+                        else if(dest_v->dist_from_source == pred_v_dist + 1){
                             //node has been visited and this is another path with same path length
-                            dest_v->path_cnt[tid] += pred_v->path_cnt[tid];
-                            dest_v->v_path_cnt[tid] += pred_v->path_cnt[tid];
+                            dest_v->path_cnt += pred_v->path_cnt;
+                            dest_v->v_path_cnt += pred_v->path_cnt;
                         }
 
                     }
@@ -678,7 +685,7 @@ Snap_VNode* snapshot(){
         }
 
 
-        float get_BC(int v , int tid, Snap_VNode * head_snap_Vnode){
+        float get_BC(int v , Snap_VNode * head_snap_Vnode){
             int path_cnt = 0;
             int v_path_cnt = 0;
             
@@ -688,9 +695,8 @@ Snap_VNode* snapshot(){
             vsnode = vsnode->vnext;
 
             while(vsnode != nullptr){
-                if(vsnode->key != v)
-                    this->BC_from_source(vsnode , v, path_cnt, v_path_cnt , tid);
-                    
+                if(vsnode->pointv->val != v)
+                    this->BC_from_source(vsnode , v, path_cnt, v_path_cnt );
                 vsnode = vsnode->vnext;
             }
           

@@ -88,10 +88,15 @@ inline long get_marked_ref(long w){
 
 
 // ENode structure
+// ENode structure
 typedef struct ENode{
 	int val; // data
 	atomic<struct VNode *>pointv; // pointer to its vertex
 	atomic<struct ENode *>enext; // pointer to the next ENode
+    ENode(){
+        pointv = {nullptr};
+        enext = {nullptr};
+    }
 }elist_t;
 
 //snap Enode
@@ -103,6 +108,9 @@ typedef struct Snap_ENode{
 
     Snap_ENode(int key){
         this-> key = key;
+        this->enext = nullptr;
+        this->dest_v = nullptr;
+        this->pointe = nullptr;
     }
 
     
@@ -593,13 +601,13 @@ Snap_VNode* snapshot(){
 }
 
 
-        /**
+    /**
      * @brief This method returns the shortest path from source s to other vertices
      * 
      */
     int max_dist_for_source(Snap_VNode *s  ,int tid ){
         int max_dist = 0;
-        int source_id = s->key;
+        int source_id = s->pointv->val;
         s->dist_from_source[tid] = 0;
         s->visitedArray[tid] = source_id;
         queue <Snap_VNode *> Q;
@@ -650,6 +658,7 @@ Snap_VNode* snapshot(){
             }
             return max_dist;
         }
+
 
 bool compare_snapshot(snap_vlist *snap1_head, snap_vlist *snap2_head){
     snap_vlist * vsnap1 = snap1_head->vnext;
