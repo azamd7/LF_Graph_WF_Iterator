@@ -392,7 +392,6 @@ class SnapCollector{
                     }
                 }
             }
-            chrono::high_resolution_clock::time_point startT = chrono::high_resolution_clock::now();
             Snap_Vnode * snap_edge_vertex_ptr = head_snap_Vnode->vnext;// used to identify current vertex we are iterating
             //iterate through the edge
             ///ist iteration
@@ -491,13 +490,7 @@ class SnapCollector{
 
 
 
-            chrono::high_resolution_clock::time_point endT = chrono::high_resolution_clock::now();
-            double timeTaken = chrono::duration_cast<chrono::microseconds>(endT-startT).count() ;
-
-            if(debug){ 
-                
-                *logfile << "Edge Iteration time taken " << timeTaken << endl;
-            }
+            
         }
        
         /**
