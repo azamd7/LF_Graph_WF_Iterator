@@ -322,7 +322,6 @@ void* pthread_call(void* t)
                     SnapGraph *ss2 = new SnapGraph();
                     ss2->collect_ss(G1.Head);
                     while(!compare_ss_collect(ss1, ss2) and cont_exec ){
-                        cout << "here" << endl;
                         ss1->freeHNode();
                         ss1 = ss2;
                         ss2 = new SnapGraph();
