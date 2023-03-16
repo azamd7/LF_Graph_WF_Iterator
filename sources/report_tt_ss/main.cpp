@@ -603,7 +603,6 @@ void *thread_funct(void * t_args){
     vector<double> * dist_prob = ((struct thread_args *)t_args)->dist_prob;
 
     
-    
     fstream logfile_th;
     if(debug){ 
         logFileName = logFileName + to_string(thread_num) +".txt";
@@ -699,7 +698,7 @@ void *thread_funct(void * t_args){
                     
                     chrono::high_resolution_clock::time_point startT = chrono::high_resolution_clock::now();
                     //print_graph(&logfile_th , graph->head);
-                    SnapCollector * sc =  takeSnapshot(graph->head , max_threads, &logfile_th,debug);
+                    SnapCollector * sc =  takeSnapshot(graph->head , max_threads, &logfile_th,debug, thread_num);
                     chrono::high_resolution_clock::time_point endT = chrono::high_resolution_clock::now();
                     double timeTaken = chrono::duration_cast<chrono::microseconds>(endT-startT).count() ;
 
@@ -913,7 +912,7 @@ int main(int argc, char** argv) {
             }
             
         }
-        if(argc == 15){
+        if(argc >= 15){
             if(argv[14][0] == 'D'){
             	debug = true;
        		}

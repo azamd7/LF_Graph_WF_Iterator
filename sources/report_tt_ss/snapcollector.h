@@ -265,7 +265,6 @@ class SnapCollector{
 
         atomic<bool> reconstruction_completed;
 
-        atomic<bool> iteration_completed;
 
 
         //Here head points to the "start_vnode" of the original graph 
@@ -284,7 +283,6 @@ class SnapCollector{
             //++threads_accessing;
             
             reconstruction_completed = {false};
-            iteration_completed = {false};
 
         }
 
@@ -396,8 +394,7 @@ class SnapCollector{
             //iterate through the edge
             ///ist iteration
 
-            while (!is_marked_ref((long)snap_edge_vertex_ptr) and !this->iteration_completed){
-                
+            while (!is_marked_ref((long)snap_edge_vertex_ptr) and this->isActive()){
                 int tmp = 0;    
                 if(atomic_compare_exchange_strong(&snap_edge_vertex_ptr->iter_edge_status , &tmp , 1)){
                     Snap_Enode *curr_snap_Enode = snap_edge_vertex_ptr->ehead;//next of ehead will never me marked
@@ -446,11 +443,11 @@ class SnapCollector{
             //2nd iteration
             snap_edge_vertex_ptr = head_snap_Vnode->vnext;
 
-            while (!is_marked_ref((long)snap_edge_vertex_ptr) and !this->iteration_completed){
+            while (!is_marked_ref((long)snap_edge_vertex_ptr) and this->isActive()){
                 if(snap_edge_vertex_ptr->iter_edge_status == 1){
                     Snap_Enode *curr_snap_Enode = snap_edge_vertex_ptr->ehead;//next of ehead will never me marked
                     Snap_Enode *next_snap_Enode = curr_snap_Enode->enext.load();
-                    while(get_unmarked_ref((long)next_snap_Enode) == (long)end_snap_Enode){
+                    while(get_unmarked_ref((long)next_snap_Enode) != (long)end_snap_Enode){
                         curr_snap_Enode = next_snap_Enode ;
                         next_snap_Enode = curr_snap_Enode->enext;
                     }
@@ -486,7 +483,6 @@ class SnapCollector{
                 snap_edge_vertex_ptr = snap_edge_vertex_ptr ->vnext;
             }
 
-            this->iteration_completed = true;
 
 
 
@@ -549,7 +545,7 @@ class SnapCollector{
             }
         }
 
-        void reconstructUsingReports(fstream * logfile , bool debug){
+        void reconstructUsingReports(fstream * logfile , bool debug, int tid){
             Snap_Vnode *next_V = head_snap_Vnode;
            
             vector<VertexReport> *vreports  = sorted_vertex_reports_ptr.load();
@@ -689,13 +685,13 @@ class SnapCollector{
                     //update the dest_vnode ptr to next of head snap_vnode
 
                     //fetch the report with source is the cur snap vertex ptr
-                    while(loc_report_index < edge_reports->size() and edge_reports->at(loc_report_index).source->val < loc_snap_vertex_ptr->vnode->val){
+                    while(loc_report_index < ereport_size and edge_reports->at(loc_report_index).source->val < loc_snap_vertex_ptr->vnode->val){
                         loc_report_index++;
                     }
                     Snap_Enode * prev_snap_edge = loc_snap_vertex_ptr->ehead;
                     Snap_Enode * curr_snap_edge = loc_snap_vertex_ptr->ehead->enext;
                     Snap_Vnode * dest_vsnap_ptr = head_snap_Vnode->vnext;
-                    if(loc_report_index == edge_reports->size() || edge_reports->at(loc_report_index).source !=loc_snap_vertex_ptr->vnode )
+                    if(loc_report_index == ereport_size || edge_reports->at(loc_report_index).source !=loc_snap_vertex_ptr->vnode )
                     {
                         //no report exist for the given source...
                         //store -2 in snap_vnodes edge report to indicate no reports for edges of this snap vnode
@@ -858,12 +854,13 @@ class SnapCollector{
             //2nd iteration
             
             loc_snap_vertex_ptr = head_snap_Vnode->vnext;
-            loc_report_index = 0;
+            
             
             //while the snap vertex is not marked ie. marked_end_snap_enode
             while(!is_marked_ref((long)loc_snap_vertex_ptr) and !this->reconstruction_completed)
             {
-                long prev_index;
+                long prev_index = -1;
+                loc_report_index = 0;
                 //if snap vertex edge status = 1 ie. edges are still not processed completely
                 if(loc_snap_vertex_ptr->edge_status == 1){
                     Snap_Enode * prev_snap_edge = loc_snap_vertex_ptr->ehead;
@@ -874,14 +871,14 @@ class SnapCollector{
                     
                     //if snap vnode report index is still -1 ...not updated by other thread
 
-                    if(loc_snap_vertex_ptr->report_index == -1){
+                    if(loc_snap_vertex_ptr->report_index == -1L){
                         //simillar to the above code....fetch the report corresponding to cuur vnode as source of edge report
-                        while(edge_reports->at(loc_report_index).source->val < loc_snap_vertex_ptr->vnode->val and loc_report_index < edge_reports->size()){
+                        while(loc_report_index < ereport_size and edge_reports->at(loc_report_index).source->val < loc_snap_vertex_ptr->vnode->val){
                             loc_report_index++;
                         }
                         prev_index = -1;
                         //if no such report
-                        if(edge_reports->at(loc_report_index).source->val >= loc_snap_vertex_ptr->vnode->val || loc_report_index == edge_reports->size())
+                        if( loc_report_index == ereport_size || edge_reports->at(loc_report_index).source->val >= loc_snap_vertex_ptr->vnode->val )
                         {    
                             //mark edge report as -2
                             
@@ -1256,7 +1253,7 @@ SnapCollector * acquireSnapCollector(Vnode * graph_head, int max_threads,fstream
  * @param max_threads max number of threads that will can access/create the snapshot object
  * @return  ** SnapCollector 
  */
-SnapCollector * takeSnapshot(Vnode * graph_head ,  int max_threads,fstream * logfile ,bool debug){
+SnapCollector * takeSnapshot(Vnode * graph_head ,  int max_threads,fstream * logfile ,bool debug, int tid){
     SnapCollector *SC = acquireSnapCollector(graph_head , max_threads , logfile, debug);
     if(debug)
         (*logfile) << "Snapshot : " << SC << endl;
@@ -1272,7 +1269,7 @@ SnapCollector * takeSnapshot(Vnode * graph_head ,  int max_threads,fstream * log
     SC->blockFurtherReports(logfile,debug);
     if(debug)
         (*logfile) << "Reports Blocked" << endl;
-    SC->reconstructUsingReports(logfile,debug);
+    SC->reconstructUsingReports(logfile,debug, tid);
     if(debug)
         (*logfile) << "Reconstruction Completed" << endl;
 

@@ -1,8 +1,6 @@
 
 
-####################################
-// check start from here
-####################################
+
 
 // Graph Structure
 
@@ -18,12 +16,10 @@ class ENode {
     int l ;
     VNode ptv;
     ENode enxt;
-    VNode from_node;
 }
 
 
 class VertexReport{
-    ENode * enode
     VNode * vnode // here only value can be stored...used to sort the reports based on vertex or associated vertex in case of edge
     action                              //insert or Delete
     VertexReport * nextReport
@@ -31,7 +27,7 @@ class VertexReport{
 
 class EdgeReport{
     ENode * enode
-    VNode * from // here only value can be stored...used to sort the reports based on vertex or associated vertex in case of edge
+    VNode * source
     action                              //insert or Delete
     EdgeReport * nextReport
 }
@@ -40,25 +36,31 @@ class Snap_Vnode{
     Vnode *vnode
     Snap_VNode* vnext
     Snap_Enode *ehead   //head of edge linked list
-
-    Snap_Vnode(vnode){
-        this->vnode = vnode
-        this->vnext := end_snap_VNode
-        start_snap_Enode := Snap_Enode(vnode->ehead)
-        this->ehead := start_snap_Enode
-    }
+    int edge_status ; //0->edges havent been processed by any thread 
+                                    // 1-> being processed 2->completed processing
+    int iter_edge_status; //same as above but used during iteration
 }
 
 class Snap_Enode{
     Snap_Enode *enext
     Enode *enode
+}
 
-    Snap_Enode(enode)
-    {
-        this->enode = enode
-        this->enext = end_snap_Enode
 
-    }
+class Graph {
+    VNode head_vnode;
+
+    Operation AddVertex (k);
+    Operation RemoveVertex(k );
+    Operation ContainsVertex(k);
+    Operation AddEdge(k, l);
+    Operation ContainsEdge(k, l);
+    Operation RemoveEdge(k, l);
+    operation locV(v);
+    procedure locE(v, k);
+    procedure ConVPlus (k, l);
+    procedure locC(v, k);
+    procedure ConCPlus (k, l);
 }
 
 
@@ -171,7 +173,6 @@ Operation ContainsEdge(k, l){
     end if
 }
 
-
 Operation RemoveEdge(k, l){
     ⟨ u, v, st ⟩ ← ConVPlus(k, l);
     if (st = false) then    
@@ -203,7 +204,8 @@ Operation RemoveEdge(k, l){
     return “EDGE REMOVED”;
 }
 
-procedure locV(v, k){
+
+operation locV(v, k){
     while (true) do
         pv ← v; cv ← pv.vnxt;
         while (true) do
@@ -224,9 +226,7 @@ procedure locV(v, k){
     end while
 }
 
-####################################
-// check end
-####################################
+
 
 procedure locE(, k){
     while (true) do
@@ -333,317 +333,251 @@ procedure ConCPlus (k, l){
 
 class SnapCollector
 {
-    active <- false   //indicates if the snap collect field is currently active
-    Snap_Vnode * head_snap_VNode  
-    Snap_Vnode * snap_tail_V_ptr
-    Snap_Enode * snap_tail_E_ptr
-
-
-    read_edge // boolean value to indicate if that we are going through the edge
-    
-
-    //for reconstruction using report
+    active = false   //indicates if the snap collect field is currently active
     vertex_reports[]
-    sorted_vertex_report[]
-    vertex_report_index //atomic int
-    delete_vertex_report //This will be used to check the while adding edges 
-    report_snap_vertex_ptr //used while iterating through the edge reports
+    edge_reports[]
+    reconstruct_done = false
+    head_vnode //head of linked list of collected Vnodes
 
-    edge_reports[]//for each thread there is a linked list maintained
-    sorted_edge_report[]
-    edge_report_index //atomic int
-
-
-    SnapCollector(){
-        Snap_Vnode * start_snap_VNode(start_VNode)
-        Snap_Vnode * end_snap_Vnode(end_Vnode)
-        start_snap_VNode->next := end_snap_VNode
-        head_snap_Vnode := start_snap_VNode
-        tail_snap_Vnode := start_snap_VNode
-        tail_snap_Enode := Null
-        snap_vertex_ptr := head_snap_VNode
-        sorted_vertex_report := Null
-        report_snap_vertex_ptr := start_snap_VNode
-
-        
-        //initialize vertex reports
-        //initialize edge reports
-        //Note : 
-        // start_snap_VNode / end_snap_Vnode indicates the start and end of vertex list 
-        // start_snap_ENode / end_snap_Enode indicates the start and end of edge list 
-        // tail_snap_VNode points to vertex which was last updated
-        // tail_snap_ENode points to vertex which was last updated
-        // snap_vertex_ptr is the vertex which we currently iterating while adding edges
-
-    }
+    operation addReport(Report * report, int tid)
+    operation ReportDelete(Node *victim, nodeType{E,V})
+    operation ReportInsert(Node* victim ,nodeType{E,V})
+    operation TakeSnapshot()
+    operation AcquireSnapCollector()
+    operation CollectSnapshot()
+    operation ReconstructionUsingReports()
+    operation ReconstructionUsingReports_parallel()
+    operation Iterator() 
+    operation Iterator_parallel() 
     
-    
+}
 
-    iterator(){
-        
+operation addReport(Report * report, int tid)
+{     
+    temp = reports[tid]
+    if(cas(reports[tid], temp, report))
+        temp->next <- report
+}
 
-        while not read_edge
-            temp_tail_snap_Vnode  := tail_snap_Vnode
-            from_Vnode := temp_tail_snap_Vnode->vnode
-            next_Vnode := fetch the next unmarked vertex from from_vnode
-            
-            if next_Vnode is end_Vnode //reaches the end of the vertex list in original graph
-                while CAS(temp_tail_snap_Vnode->vnext , end_snap_Vnode ,marked(end_snap_VNode))
-                    temp_tail_snap_Vnode := tail_snap_VNode
-                read_edge = True
-                break
-            endif
+operation ReportDelete(Node *victim, nodeType{E,V})
+    SC = (dereference) PSC
+    If (SC.IsActive()) 
+        if(nodeType = V)
+            report = VertexReport(victim, DELETE)
+            temp = VertexReports[tid]
+                if(cas(VertexReports[tid], temp, report))
+                    temp->next = report
+        else
+            report = EdgeReport(victim, DELETE)
+            temp = EdgeReports[tid]
+                if(cas(EdgeReports[tid], temp, report))
+                    temp->next = report
 
-
-            //create a new snap vertex vertex Node
-            snap_Vnode := Snap_VNode(next_Vnode)
-            
-            //this would fail if some other node is added
-            if(CAS(temp_snap_tail_Vnode->vnext , end_snap_VNode, snap_Vnode))
-                CAS(tail_snap_Vnode, temp_snap_tail_Vnode, snap_Vnode) 
-            else 
-                if temp_snap_tail_Vnode->vnext is marked(end_snap_VNode)//no more vertex can be added
-                    read_edge = true
-                    break
-                endif
-
-                CAS(tail_snap_Vnode, temp_snap_tail_Vnode, temp_snap_tail_Vnode->vnext) //helping : new edge has been added but vertex tail ptr if not updated
-            endif
-        
-
-        //iterate through the edge
-        while read_edge
-            
-            temp_snap_vertex_ptr := snap_vertex_ptr // used to identify current vertex we are iterating can be stored locally
-            temp_tail_snap_Enode := tail_snap_Enode
-            
-            //temp_tail_E can be prev vertex tail_E in which case its next is marked(end_E_node) 
-            //or some edge which belongs to current temp_snap_vertex_ptr or after that
-
-            if temp_tail_snap_Enode is NUll //no edge has been added yet or tail_E has not been updated
-                //Note :temp_snap_vertex_ptr can only be start node or the first vertex or else tail_E would not be null
-                //      or if there are no edges for some vertex in that case it will be at vertex with an edge
-                if temp_tail_snap_Vnode is start_snap_VNode :
-                    CAS(snap_vertex_ptr , temp_tail_snap_Vnode , temp_tail_snap_Vnode->vnext)
-                    temp_tail_snap_Vnode := snap_vertex_ptr
-                
-                start_snap_Enode = temp_tail_snap_Vnode->head //start of the edgelist
-                CAS(tail_snap_ENode , NULL , start_snap_Enode)
-            else
-                next_enode := temp_tail_snap_Enode -> enode
-
-                //next_enode := fetch next edge which is not end_E_node and not marked
-                while next_enode is not end_Enode or edge is marked or edge TO vertex is marked
-                    next_enode := next_enode ->enext
-                
-                if next_enode is end_enode :
-                    
-                    while(CAS(temp_tail_snap_Enode->enext , end_snap_ENode , marked(end_snap_ENode)  //either some thread has updated to marked(end_snap_enode) or added another edge
-                                                                                                    // temp_tail_E->next is not marked(end_snap_enode))                         
-                        temp_tail_snap_Enode := temp_tail_snap_Enode->next
-                
-                    if temp_snap_vertex_ptr ->next is end_snap_Vnode 
-                        break
-                    CAS(snap_vertex_ptr,temp_snap_vertex_ptr , temp_snap_vertex_ptr->next)
-                    temp_snap_vertex_ptr := snap_vertex_ptr
-                    CAS(tail_snap_Enode , temp_tail_snap_Enode , temp_snap_vertex_ptr->ehead)
-                
-                else //
-                    snap_Enode := Snap_Enode(next_enode)
-
-
-                    //add the  next node to snap
-                    if (CAS(tail_snap_Enode->next , end_snap_ENode ,snap_Enode ))
-                        CAS(tail_snap_Enode , temp_tail_snap_Enode , snap_Enode)
-                    else
-                        CAS(tail_snap_Enode , temp_tail_snap_Enode , temp_tail_snap_Enode->enext) //helping
-
-
-    }
-
-
-    addReport(Report * report, int tid)
-    {     
-        temp = reports[tid]
-        if(cas(reports[tid], temp, report))
-            temp->next <- report
-    }
-
-    ReportDeleteVertex(Node *victim)
-        SC = (dereference) PSC
-        If (SC.IsActive()) 
-           report = VertexReport(victim, DELETED)
-           temp = Vertexeports[tid]
-            if(cas(VertexReports[tid], temp, report))
-                temp->next <- report
-
-    ReportInsertVertex(Node* node)
-        SC = (dereference) PSC
-        if (SC.IsActive())
-            if (node is not marked) #Case we insert and delete happened before the snapshot and then insert thread reads isActive after the snapshot starts
-                addReport(Report(newNode, INSERt),tid)
-
-    ReportDeleteEdge(Node *victim,Vnode from)
-        SC = (dereference) PSC
-        If (SC.IsActive()) 
-            addReport(Report(victim, DELETED,from),tid)
-
-    ReportInsertEdge(Node* node,Vnode from)
-        SC = (dereference) PSC
-        if (SC.IsActive())
+operation ReportInsert(Node* victim ,nodeType{E,V})
+    SC = (dereference) PSC
+    if (SC.IsActive())
+        if(nodeType == V)
             if (node is not marked) 
-                addReport(report(newNode, INSERt,from),tid)
+                report = VertexReport(victim, INSERT)
+                temp = VertexReports[tid]
+                    if(cas(VertexReports[tid], temp, report))
+                        temp->next <- report
+
+        else
+            if (node is not marked )
+                report = EdgeReport(victim, DELETE)
+                temp = EdgeReports[tid]
+                    if(cas(EdgeReports[tid], temp, report))
+                        temp->next <- report
 
 
-    
-
-
-
-    TakeSnapshot()
-        SC = AcquireSnapCollector()
-        CollectSnapshot(SC)
-        ReconstructUsingReports(SC)
-
-    AcquireSnapCollector()
-        SC = (dereference) PSC 
-        if (SC is not NULL and SC.IsActive()) 
-            return SC 
-        newSC = NewSnapCollector() 
-        CAS(PSC, SC, newSC) 
-        newSC = (dereference) PSC 
-        return newSC 
-    
-
-    //Note : Make sentinel node next as marked sentinel node
-    SC.BlockFurtherNodes(){
-        temp_tail_V = tail_V
-        while(CAS(temp_tail_V->next , sentinelVNode , marked(sentinelVNode)))
-            temp_tail_V := temp_tail_V->next
-        
-        //in case of edge we need to do update tail_E because temp_tail_E could be pointing to the last node
-        // in the edge list in case tail_E could change to some other edgelist edge and cas may succeed
-        temp_tail_E := tail_E
-        while(CAS(tail_E , temp_tail_E , sentinelENode))
-            temp_tail_E := tail_E  //cant be next as it can be edge of other node
-        
-    }
-
-
+operation TakeSnapshot()
+    SC = AcquireSnapCollector()
     CollectSnapshot(SC)
-        iterator()
-        SC.BlockFurtherNodes()
-        
-        SC.Deactivate()
-        
-        SC.BlockFurtherReports()
-
     ReconstructUsingReports(SC)
-        next_V := head_V
-        Vertex_reports = SC.ReadVertexReports()
-        if sorted_vertex_report is Null
-            sorted_vertex_report := sort Vertex_reports based on value and address(First delete then insert report)
-        else
-            sorted_vertex_report := read(sorted_vertex_report)
-        
-        
-        prev_snap_vnode = start_snap_Vnode 
-        next_snap_vnode = start__snap_Vnode->next
-        while vertex_report_index < size(sorted_edge_report)
-            index := vertex_report_index
-            prev_index := index
 
-            report = sorted_vertex_report[index] 
+operation AcquireSnapCollector()
+    SC = (dereference) PSC 
+    if (SC is not NULL and SC.IsActive()) 
+        return SC 
+    newSC = NewSnapCollector() 
+    CAS(PSC, SC, newSC) 
+    newSC = (dereference) PSC 
+    return newSC 
+
+operation CollectSnapshot()
+    SC.iterator()        
+    SC.Deactivate()
+    SC.BlockFurtherReports()
             
-            if report is insert :
-                //No delete report as the reports are sorted by delete and then insert for same address and value
-                while next_snap_vnode->vnode.val < report->vnode.val and next_snap_vnode is not end_snap_Vnode
-                        prev_vnode := next_snap_vnode
-                        next_snap_vnode := next_snap_vnode ->vnext
-                
-                if next_snap_vnode->vnode != report->vnode.val
-                    snap_vnode(report->vnode)
-                    snap_vnode->next = next_snap_vnode
-                    CAS(prev_vnode->next , next_snap_vnode , snap_vnode)
-                
-            else 
-                add report to Delete_vertext_reports
-
-                //Note : there cant be 2 snap nodes with same value
-                
-                //goto vertex location
-                while next_snap_vnode->vnode < report->vnode.val and not end_snap_Vnode
-                        prev_vnode := next_snap_vnode
-                        next_snap_vnode := next_snap_vnode ->vnext
-
-                if next_snap_vnode->vnode == report->vnode 
-                    CAS(prev_snap_vnode->next , next_snap_vnode , next_snap_vnode->next )
-                    next_snap_vnode = next_snap_vnode ->next
-                
-                while report belongs to the same vertex address //insert or delete
-                    index++
-                    continue
-                
-                CAS(vertex_report_index , prev_index, index) //update vertex index
-
-                
-        edge_reports = SC.ReadVertexReports()
-        if sorted_edge_report is Null
-            sorted_edge_report := sort edge_reports based on from value and address(First delete then insert report)
-        else
-            sorted_vertex_report := read(sorted_vertex_report)
-
-        
-
-        
-        //check if edge reports is empty
-        report = edge_reports[index]    
-        from_Vnode = report->from_Vnode
-
-        index = edge_report_index //default value is 0
-        
-        while index < size(edge_reports)
-            loc_snap_vertex_ptr := report_snap_vertex_ptr  
-            
-        
-            prev_index = index
-
-             //check if edge reports is empty
-            report = edge_reports[index]    
-            from_Vnode = report->from_Vnode
-
-            //fetch the next vertex pointer
-            while loc_snap_vertex_ptr is not end_snap_Vnode and loc_snap_vertex_ptr->vnode.val < from_Vnode.val 
-                remove edge from edge list of loc_snap_vertex_ptr with TO vertex present in DELETE reports
-                loc_snap_vertex_ptr := loc_snap_vertex_ptr->vnext
-
-            if loc_snap_vertex_ptr is end_snap_Vnode //reached end of valid from vertex hence reconstruction completed
-                break
-            
-            prev_snap_enode := loc_snap_vertex_ptr->ehead
-            next_snap_enode := prev_snap_enode->enext
-
-            while next_snap_enode is not end_snap_ENode and next_snap_enode.val < report->enode.val
-                next_snap_enode := next_snap_enode.enext
-        
             
 
-            if insert report and  next_snap_enode.val != report->enode.val
-                if report->enode->vnode is not in  delete report : //no delete report TO edge address and value
-                    new snap_Enode(report->enode)
-                    CAS(prev_snap_enode->next ,next_snap_enode ,snap_Enode)
+operation ReconstructionUsingReports()
+    V[] = SC.read_collected_vnodes() 
+    v_reports[] = SC.read_vreports() //returns sorted vreports
 
-            else//delete report
-                if next_snap_enode.val = report->enode.val
-                    CAS(prev_snap_enode->next ,next_snap_enode ,next_snap_enode->enext)
-                
-                while report for same address and value //ignore all report belonging to same TO address and value
-                    index++
-                    continue
+    a VNode N belongs to Snapshot iff : 
+        ((N has a reference in V[]) OR
+        (N has INSERT Report in v_reports[]))
+            AND
+        (N has no DELETE Report in v_reports[])
+
+    e_reports[] = SC.read_ereports() //returns sorted edge reports
+    foreach VNode N of the Snapshot :
+        E[] = SC.read_collected_enodes(N) //returns edge nodes having N as source
+
+        a ENode M belongs to Snapshot iff :
+            ((M has a reference in E[]) OR
+            (M has INSERT Report in e_reports[]))
+                AND
+            (M has no DELETE Report in e_reports[] )
+                AND
+            (The DESTINATION Vnode of M belongs to snapshot)
+
+
+
+
+operation ReconstructionUsingReports_parallel()
+    V[] = SC.read_collected_vnodes() 
+    v_reports[] = SC.read_vreports() //returns sorted vreports
+
+    a VNode N belongs to Snapshot iff : 
+        ((N has a reference in V[]) OR
+        (N has INSERT Report in v_reports[]))
+            AND
+        (N does not have a DELETE Report in v_reports[] )
+
+
+
+
+    idle_set = {VNodes belonging to Snapshot}    
+    active_set = {}
+    e_reports[] = SC.read_ereports() //returns sorted edge reports
+    //ist iteration
+    while !idle_set.isEmpty() and !SC.reconstruct_done:
+        N = idle_set.remove()
+        active_set.add(V)
+        E[] = SC.read_collected_enodes(N)
+
+        a ENode M belongs to Snapshot iff : 
+            ((M has a reference in E[]) OR
+            (M has INSERT Report in e_reports[]))
+                AND
+            (M has no DELETE Report in e_reports[] )
+                AND
+            (The DESTINATION Vnode of M belongs to snapshot)
+        
+        active_set.remove(N)
+
+    //2nd Iteration
+
+    while !active_set.isEmpty() and !SC.reconstruct_done:
+        N = active_set.fetch_next()
+
+        E[] = SC.read_collected_enodes(V)
+
+        a ENode M belongs to Snapshot iff : 
+            ((M has a reference in E[]) OR
+            (M has INSERT Report in e_reports[]))
+                AND
+            (M has no DELETE Report in e_reports[] )
+                AND
+            (The DESTINATION Vnode of M belongs to snapshot)
+        
+        active_set.remove(N)
+
+
+
+operation Iterator()
+    curr_v = head vertex of the graph
+    
+    while curr_v != NULL and SC.isActive() :
+        if curr_v is not marked :
+            SC.collectVnode(curr)
+        curr_v = curr_v.vnext
+
+    SC.BlockFurtherVnodes();
+
+    foreach V of the collected Vnodes :
+        curr_e = head of the edge list of V
+        while curr_e != NULL :
+            if curr_e is not marked : 
+                SC.collectEnode(V, curr_e)
+            curr_e = curr_e.next
+        SC.BlockFurtherEnodes(V)
+    
+
+
+
+
+operation Iterator_parallel()
+    curr_v = head vertex of the graph
+    
+    while curr_v != NULL and SC.isActive() :
+        if curr_v is not marked :
+            SC.collectVnode(curr)
+        curr_v = curr_v.vnext
+
+    SC.BlockFurtherVnodes();
+
+    idle_set = SC.read_collected_vnodes()
+    active_set = {}
+
+    //1st iteration
+    while !idle_set.isEmpty() and SC.isactive() :
+        V = idle_set.remove()
+        
+        active_set.add(V)
+
+        curr_e = head of the edge list of V
+        while curr_e != NULL :
+            if curr_e is not marked : 
+                SC.collectEnode(V, curr_e)
+            curr_e = currE.next
+        SC.BlockFurtherEnodes(V)
+
+        active_set.remove(V)
+    
+    //2nd Iteration
+
+    while active_set.isEmpty() and SC.isactive():
+        V = active_set.fetchNext()
+
+        curr_e = head of the edge list of V
+        while curr_e != NULL :
+            if curr_e is not marked : 
+                SC.collectEnode(V, curr_e)
+            curr_e = currE.next
+        SC.BlockFurtherEnodes(V)
+
+        active_set.remove(V)
+
+
+
+
+
+   
+        
             
-            CAS(edge_report_index,prev_index,index)//update edge index
-            index = edge_report_index 
-                
-                
+
+
+
+
+      
+
+        
+
+        
+
+
+        
+    
+
+        
+
+
+
+
 
 
 
