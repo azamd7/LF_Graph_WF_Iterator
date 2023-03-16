@@ -14,10 +14,10 @@ date_time_obj =now.strftime('%H_%M_%S')
 
 threads = [13,26,52,78,102] 
 #threads = [4,8]
-algos = [ "icdcn_tp" , "report_tp" , "opodis_tp" ]
+algos = [ "icdcn_resp" , "report_resp" , "opodis_resp" ]
 debug = False
 main_file = "main.cpp"
-iterations = 4
+iterations = 5
 test_duration = "10" #no of sec before stop executions
 init_vertices = str(10**4)
 init_edges = str(2 * (10**4))
