@@ -42,6 +42,7 @@
 #include<stack>
 #include<string>
 #include <unistd.h>
+#include <chrono>
 
 #define vntp "VERTEX NOT PRESENT"
 #define entp "EDGE NOT PRESENT"
@@ -88,7 +89,6 @@ inline long get_marked_ref(long w){
 
 
 // ENode structure
-// ENode structure
 typedef struct ENode{
 	int val; // data
 	atomic<struct VNode *>pointv; // pointer to its vertex
@@ -130,13 +130,11 @@ typedef struct Snap_VNode{
 	struct VNode * pointv; // pointer to dest snap_vertex
 	struct Snap_ENode * enext; // pointer to the next ENode
     struct Snap_VNode * vnext;//next snap vertex pointer
-     int * visitedArray;// size same as threads // used to indicate whether the node has beeen visited by the given thread
+     int visitedArray;// size same as threads // used to indicate whether the node has beeen visited by the given thread
     //this will have value as the source node which was being processed when it was visited last
 
-    int * dist_from_source;
-    int * BC_path_indicator;
-    int * path_cnt;//total shortest path from source 
-    int * v_path_cnt;//total shortest path containing BC vertex
+    int dist_from_source;
+     
     int key;
 
     Snap_VNode(VNode * vnode, Snap_VNode * next_snap_vnode) {
@@ -145,20 +143,16 @@ typedef struct Snap_VNode{
         this -> vnext = next_snap_vnode;
         Snap_ENode * start_snap_Enode;         
         this -> enext = start_snap_Enode;
-        this ->visitedArray = new int[NTHREADS]{0};
-        dist_from_source = new int[NTHREADS]{0};
-        BC_path_indicator = new int[NTHREADS]{0};
-        path_cnt = new int[NTHREADS]{0};
-        v_path_cnt = new int[NTHREADS]{0};
+        this ->visitedArray = 0;
+        dist_from_source = 0;
+         
     }
 
     Snap_VNode(int key){
         this->vnext = nullptr;
-        this ->visitedArray = new int[NTHREADS]{0};
-        dist_from_source = new int[NTHREADS]{0};
-        BC_path_indicator = new int[NTHREADS]{0};
-        path_cnt = new int[NTHREADS]{0};
-        v_path_cnt = new int[NTHREADS]{0};
+        this ->visitedArray = 0;
+        dist_from_source = 0;
+       
     }
 }snap_vlist;
 
@@ -600,16 +594,16 @@ Snap_VNode* snapshot(){
               
 }
 
-
-    /**
+        
+      /*  **
      * @brief This method returns the shortest path from source s to other vertices
      * 
      */
-    int max_dist_for_source(Snap_VNode *s  ,int tid ){
+    int max_dist_for_source(Snap_VNode *s  ,int tid1 ){
         int max_dist = 0;
         int source_id = s->pointv->val;
-        s->dist_from_source[tid] = 0;
-        s->visitedArray[tid] = source_id;
+        s->dist_from_source = 0;
+        s->visitedArray = source_id;
         queue <Snap_VNode *> Q;
         Q.push(s);
 
@@ -618,7 +612,7 @@ Snap_VNode* snapshot(){
             
             Snap_VNode * pred_v = Q.front();
             //cout << "In loop " << pred_v << endl;
-            int pred_v_dist = pred_v->dist_from_source[tid];
+            int pred_v_dist = pred_v->dist_from_source;
             Q.pop();
             eHead = pred_v->enext;
             //(*logfile) << "pred_v " << pred_v << " pred_v->v_path_cnt " << pred_v->v_path_cnt[0] << endl;
@@ -627,11 +621,11 @@ Snap_VNode* snapshot(){
                 //cout << "In loop 2" << endl;
                 int dist = pred_v_dist + 1;
                 Snap_VNode* dest_v = itNode->dest_v;
-                if(dest_v->visitedArray[tid] != source_id)//destination vertex is not visited
+                if(dest_v->visitedArray != source_id)//destination vertex is not visited
                 {
 
-                    dest_v->visitedArray[tid] = source_id;
-                    dest_v->dist_from_source[tid] = dist;
+                    dest_v->visitedArray = source_id;
+                    dest_v->dist_from_source = dist;
                     if(dist > max_dist)
                         max_dist = dist;                    
                     Q.push(dest_v);

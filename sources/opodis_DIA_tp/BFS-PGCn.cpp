@@ -1136,13 +1136,11 @@ class SnapVNode{
 	SnapENode *enext; // pointer to the EHead
 	struct VNode * v_ptr ; //ptr to the original graph vnode
     int ecnt;
-    int * visitedArray;// size same as threads // used to indicate whether the node has beeen visited by the given thread
+    int visitedArray;// size same as threads // used to indicate whether the node has beeen visited by the given thread
     //this will have value as the source node which was being processed when it was visited last
 
-    int * dist_from_source;
-    int * BC_path_indicator;
-    int * path_cnt;//total shortest path from source 
-    int * v_path_cnt;//total shortest path containing BC vertex
+    int dist_from_source;
+    
     //is_reconstruct is true then end enode is marked
     SnapVNode(){
         enext = nullptr;
@@ -1151,13 +1149,10 @@ class SnapVNode{
         SnapENode * etail = new SnapENode(INT_MAX , NULL , nullptr);
         SnapENode * ehead = new SnapENode(INT_MIN , etail , NULL);
         this->enext = ehead;
-        this ->visitedArray = new int[NTHREADS]{0};
+        this ->visitedArray = 0;
 
-        dist_from_source = new int[NTHREADS]{0};
-        BC_path_indicator = new int[NTHREADS]{0};
-        path_cnt = new int[NTHREADS]{0};
-        v_path_cnt = new int[NTHREADS]{0};
-
+        dist_from_source = 0;
+        
         //cout << "Snapvnode created : " << this << " vpathcnt " << v_path_cnt << endl;
     }
     SnapVNode(int key,  SnapVNode *vnext , struct VNode * v_ptr){
@@ -1186,12 +1181,10 @@ class SnapVNode{
         //v_path_cnt = new int[NTHREADS];
         //for(int i=0; i<NTHREADS; i++)
         //    this->v_path_cnt[i] = 0;
-        this ->visitedArray = new int[NTHREADS]{0};
+        this ->visitedArray = 0;
 
-        dist_from_source = new int[NTHREADS]{0};
-        BC_path_indicator = new int[NTHREADS]{0};
-        path_cnt = new int[NTHREADS]{0};
-        v_path_cnt = new int[NTHREADS]{0};
+        dist_from_source = 0;
+        
 
 
         //cout << "Snapvnode created : " << this << " vpathcnt " << v_path_cnt << endl;
@@ -1206,11 +1199,7 @@ class SnapVNode{
             tmp = tmp_next;
             
         }
-        delete[] visitedArray;
-        delete[] dist_from_source;
-        delete[] BC_path_indicator;
-        delete [] path_cnt;
-        delete [] v_path_cnt;
+        
     }
 };
 
@@ -1386,15 +1375,17 @@ class SnapGraph{
 
 
   }
-     /**
+  
+    
+    /**
      * @brief This method returns the shortest path from source s to other vertices
      * 
      */
-    int max_dist_for_source(SnapVNode *s ,int tid ){
+    int max_dist_for_source(SnapVNode *s ,int tid1 ){
         int max_dist = 0;
         int source_id = s->key;
-        s->dist_from_source[tid] = 0;
-        s->visitedArray[tid] = source_id;
+        s->dist_from_source = 0;
+        s->visitedArray = source_id;
         queue <SnapVNode *> Q;
         Q.push(s);
 
@@ -1403,7 +1394,7 @@ class SnapGraph{
             
             SnapVNode * pred_v = Q.front();
             //cout << "In loop " << pred_v << endl;
-            int pred_v_dist = pred_v->dist_from_source[tid];
+            int pred_v_dist = pred_v->dist_from_source;
             Q.pop();
             eHead = pred_v->enext;
             //(*logfile) << "pred_v " << pred_v << " pred_v->v_path_cnt " << pred_v->v_path_cnt[0] << endl;
@@ -1412,11 +1403,11 @@ class SnapGraph{
                 //cout << "In loop 2" << endl;
                 int dist = pred_v_dist + 1;
                 SnapVNode* dest_v = itNode->pointv;
-                if(dest_v->visitedArray[tid] != source_id)//destination vertex is not visited
+                if(dest_v->visitedArray != source_id)//destination vertex is not visited
                 {
 
-                    dest_v->visitedArray[tid] = source_id;
-                    dest_v->dist_from_source[tid] = dist;
+                    dest_v->visitedArray = source_id;
+                    dest_v->dist_from_source = dist;
                     if(dist > max_dist)
                         max_dist = dist;                    
                     Q.push(dest_v);
@@ -1456,6 +1447,8 @@ class SnapGraph{
     
         return max_dist;
     }
+    
+
 };
 
 bool compare_ss_collect(SnapGraph * g1 , SnapGraph *g2){

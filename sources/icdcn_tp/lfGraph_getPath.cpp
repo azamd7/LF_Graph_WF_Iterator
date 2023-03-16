@@ -130,7 +130,6 @@ typedef struct Snap_VNode{
 	struct VNode * pointv; // pointer to dest snap_vertex
 	struct Snap_ENode * enext; // pointer to the next ENode
     struct Snap_VNode * vnext;//next snap vertex pointer
-     
     int key;
 
     Snap_VNode(VNode * vnode, Snap_VNode * next_snap_vnode) {
@@ -139,12 +138,10 @@ typedef struct Snap_VNode{
         this -> vnext = next_snap_vnode;
         Snap_ENode * start_snap_Enode;         
         this -> enext = start_snap_Enode;
-       
     }
 
     Snap_VNode(int key){
         this->vnext = nullptr;
-       
     }
 }snap_vlist;
 
@@ -585,7 +582,6 @@ Snap_VNode* snapshot(){
     return sg_copy_head;
               
 }
-
 
 
 bool compare_snapshot(snap_vlist *snap1_head, snap_vlist *snap2_head){

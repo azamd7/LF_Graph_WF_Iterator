@@ -173,7 +173,7 @@ void* pthread_call(void* t)
                     
                     }
                     v = rand() % (vertexID) + 1; 
-                    G1.get_BC(v , threadnum , vhead2);
+                    G1.get_BC(v  , vhead2);
                     if(cont_exec)
                         ops[threadnum]++;
                 //}

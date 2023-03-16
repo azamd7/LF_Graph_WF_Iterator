@@ -696,16 +696,16 @@ void *thread_funct(void * t_args){
             //snapshot
             {       
                     
-                //print_graph(&logfile_th , graph->head);
-                SnapCollector * sc =  takeSnapshot(graph->head , max_threads, &logfile_th,debug, thread_num);
-
-                if(continue_exec)
-                    ops[thread_num]++;
-                
-                if(debug){ 
+                    //print_graph(&logfile_th , graph->head);
+                    SnapCollector * sc =  takeSnapshot(graph->head , max_threads, &logfile_th,debug, thread_num);
                     
-                    sc->print_snap_graph(&logfile_th);
-                }
+                    if(continue_exec)
+                        ops[thread_num]++;
+                    
+                    if(debug){ 
+                        
+                        sc->print_snap_graph(&logfile_th);
+                    }
                 
                
             }
@@ -1001,6 +1001,8 @@ int main(int argc, char** argv) {
     avg_cnt = tot_cnt * 1.0 /( test_duration);
     max_cnt = max_cnt * 1.0 /( test_duration);
 
+    opfile << "Avg  : " << avg_cnt <<fixed << endl;
+    opfile << "Max  : " << max_cnt <<fixed << endl;
 
     cout << avg_cnt << fixed << endl;
     cout << max_cnt << fixed << endl;

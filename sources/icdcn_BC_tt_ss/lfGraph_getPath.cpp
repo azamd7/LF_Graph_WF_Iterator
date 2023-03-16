@@ -123,7 +123,7 @@ typedef struct VNode{
 	atomic<struct VNode *>vnext; // pointer to the next VNode
 	atomic<struct ENode *>enext; // pointer to the EHead
 	atomic <int> ecount; // counter for edge operations
-	int visitedArray; // size same as # threads
+	int *visitedArray; // size same as # threads
 }vlist_t;
 
 typedef struct Snap_VNode{
@@ -154,7 +154,7 @@ typedef struct Snap_VNode{
 
     Snap_VNode(int key){
         this->vnext = nullptr;
-        tthis ->visitedArray = 0;
+        this ->visitedArray = 0;
         dist_from_source = 0;
         BC_path_indicator = 0;
         path_cnt = 0;
@@ -606,7 +606,7 @@ Snap_VNode* snapshot(){
          */
         void BC_from_source(Snap_VNode *s , int v , int &path_cnt , int &path_cnt_with_v ){
             int source_id = s->pointv->val;
-            s->path_cnt[tid] = 1;
+            s->path_cnt = 1;
             s->dist_from_source = 0;
             queue <Snap_VNode *> Q;
             Q.push(s);
@@ -702,6 +702,65 @@ Snap_VNode* snapshot(){
           
             return v_path_cnt * 1.0 / path_cnt;
         }
+
+      /*  **
+     * @brief This method returns the shortest path from source s to other vertices
+     * 
+     */
+    int max_dist_for_source(Snap_VNode *s  ,int tid1 ){
+        int max_dist = 0;
+        int source_id = s->pointv->val;
+        s->dist_from_source = 0;
+        s->visitedArray = source_id;
+        queue <Snap_VNode *> Q;
+        Q.push(s);
+
+        Snap_ENode * eHead;
+        while(!Q.empty()){
+            
+            Snap_VNode * pred_v = Q.front();
+            //cout << "In loop " << pred_v << endl;
+            int pred_v_dist = pred_v->dist_from_source;
+            Q.pop();
+            eHead = pred_v->enext;
+            //(*logfile) << "pred_v " << pred_v << " pred_v->v_path_cnt " << pred_v->v_path_cnt[0] << endl;
+            //(*logfile) << "pred_v " << pred_v << " pred_v->path_cnt " << pred_v->path_cnt[0] << endl;
+             for(Snap_ENode * itNode = eHead->enext; itNode!= nullptr; itNode = itNode ->enext){
+                //cout << "In loop 2" << endl;
+                int dist = pred_v_dist + 1;
+                Snap_VNode* dest_v = itNode->dest_v;
+                if(dest_v->visitedArray != source_id)//destination vertex is not visited
+                {
+
+                    dest_v->visitedArray = source_id;
+                    dest_v->dist_from_source = dist;
+                    if(dist > max_dist)
+                        max_dist = dist;                    
+                    Q.push(dest_v);
+                }
+            }
+        }
+
+        return max_dist;
+    }
+
+
+        float get_diameter(int tid , Snap_VNode * head_snap_Vnode ){
+            int max_dist = 0;
+            Snap_VNode * vsnode = head_snap_Vnode;
+
+            vsnode = vsnode->vnext;
+
+            while(vsnode != nullptr){
+                int dist = this->max_dist_for_source(vsnode , tid );
+                if(dist > max_dist)
+                    max_dist = dist;
+                vsnode = vsnode->vnext;
+                    
+            }
+            return max_dist;
+        }
+
 
 bool compare_snapshot(snap_vlist *snap1_head, snap_vlist *snap2_head){
     snap_vlist * vsnap1 = snap1_head->vnext;

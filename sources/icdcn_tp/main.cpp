@@ -62,8 +62,6 @@ typedef struct infothread{
   int threadnum;
   double * ops;
   vector<double> * dist_prob;
-  double * max_times;
-  double * avg_times;
 }tinfo;
 
 
@@ -75,12 +73,11 @@ void* pthread_call(void* t)
         long Tid = ti->tid;
         slist G1=ti->G;
         int threadnum = ti->threadnum;
-        double * avg_times = ti->avg_times;
-        double * max_times = ti->max_times;
+
         
         double * ops = ti->ops;
         vector<double> * dist_prob = ti->dist_prob;
-    vector<double> tts;//list of time taken for snapshot
+        
 	int u, v;;
     random_device rd;
     mt19937 gen(rd());
@@ -103,7 +100,8 @@ void* pthread_call(void* t)
                 if(v == 0)
                     goto l;
                 G1.AddV(v,NTHREADS);
-                
+                if(cont_exec)
+                    ops[threadnum]++;
                 break;
             }
             case 1:
@@ -112,7 +110,8 @@ void* pthread_call(void* t)
                 if(v == 0)
                     goto l2;
                 G1.RemoveV(v);
-                
+                if(cont_exec)
+                    ops[threadnum]++;
                 break;			
             }
 
@@ -124,7 +123,8 @@ void* pthread_call(void* t)
                 if(u == v || u == 0 || v == 0)	
                     goto l4;
                 G1.AddE(u,v); 
-                
+                if(cont_exec)
+                    ops[threadnum]++;
                 break;			
             }
                
@@ -135,7 +135,8 @@ void* pthread_call(void* t)
                 if(u == v || u == 0 || v == 0)	
                     goto l3;
                 G1.RemoveE(u,v); 
-                
+                if(cont_exec)
+                    ops[threadnum]++;
                 break;	
             }
             
@@ -146,7 +147,8 @@ void* pthread_call(void* t)
                 if(u == v || u == 0 || v == 0)		
                     goto l5;
                 G1.ContainsE(u,v); 
-                
+                if(cont_exec)
+                    ops[threadnum]++;
                 break;			
             }
             case 5:
@@ -156,13 +158,13 @@ void* pthread_call(void* t)
                 if(v == 0)
                     goto l6;
                 G1.ContainsV(v);
-                
+                if(cont_exec)
+                    ops[threadnum]++;
                 break;
             }
             case 6:
             {
                 //if(threadnum == 0){
-                     chrono::high_resolution_clock::time_point startT = chrono::high_resolution_clock::now();
                     snap_vlist * vhead1 = G1.snapshot();
                     snap_vlist * vhead2 = G1.snapshot();
                     while(cont_exec && !G1.compare_snapshot(vhead1 , vhead2) ){
@@ -170,32 +172,13 @@ void* pthread_call(void* t)
                         vhead2 = G1.snapshot();
                     
                     }
-                   
-                    v = rand() % (vertexID) + 1; 
-                    G1.get_BC(v , vhead2);
-                    //if(cont_exec)
-                    //    ops[threadnum]++;
-                    chrono::high_resolution_clock::time_point endT = chrono::high_resolution_clock::now();
-                    double timeTaken = chrono::duration_cast<chrono::microseconds>(endT-startT).count() ;
-                    tts.push_back(timeTaken);
-                    if (max_times[threadnum] < timeTaken){
-                        max_times[threadnum] = timeTaken;
-                    }
+                    if(cont_exec)
+                        ops[threadnum]++;
                 //}
             }
         }
         
 	}
-    //calculate average of all the timetaken
-    if(tts.size() > 0){
-        double total_tts = 0;
-        for(double tt : tts){
-            total_tts += tt;
-        }
-        avg_times[threadnum] = total_tts / tts.size();
-
-    }
-
     return nullptr; 
     
     		
@@ -247,10 +230,6 @@ int main(int argc, char*argv[])
     double *ops = new double[NTHREADS];
     cont_exec.store(true);
 	//cout << "timer started . . ." << endl;
-
-    double * max_times = new double[NTHREADS];
-    double * avg_times = new double[NTHREADS];
-
 	for (int i=0;i < NTHREADS;i++)
     {
         attr[i].tid = i;
@@ -258,8 +237,6 @@ int main(int argc, char*argv[])
         attr[i].threadnum = i;
         attr[i].ops = ops;
         attr[i].dist_prob = &dist_prob;
-        attr[i].max_times = max_times;
-        attr[i].avg_times = avg_times;
         pthread_create(&thr[i], nullptr, pthread_call, &attr[i]);
     }
     sleep(seconds);
@@ -270,22 +247,23 @@ int main(int argc, char*argv[])
     {
 		pthread_join(thr[i], NULL);
 	}
-	double max_time = 0;
-    double avg_time = 0;
+	double max_cnt = 0;
+    double tot_cnt = 0;
+    double avg_cnt = 0;
 
-    for( int i = 0;i < num_of_threads ; i++){
+    for( int i = 0;i < NTHREADS ; i++){
         //check max
-        if(max_time < max_times[i]){
-            max_time = max_times[i];
+        if(max_cnt < ops[i]){
+            max_cnt = ops[i];
         }
-        avg_time += avg_times[i];
+        tot_cnt += ops[i];
     }
+    //if(avg_cnt != 0.0f)
+    avg_cnt = tot_cnt * 1.0 / (test_duration);
+    max_cnt = max_cnt * 1.0 / (test_duration);
 
-    avg_time = avg_time / num_of_threads;
-
-
-    cout << avg_time << fixed << endl;
-    cout << max_time << fixed << endl;
+    cout << avg_cnt << fixed << endl;
+    cout << max_cnt << fixed << endl;
 
 	return 0;
 }           

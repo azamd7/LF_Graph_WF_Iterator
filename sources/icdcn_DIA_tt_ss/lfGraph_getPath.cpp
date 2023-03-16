@@ -89,7 +89,6 @@ inline long get_marked_ref(long w){
 
 
 // ENode structure
-// ENode structure
 typedef struct ENode{
 	int val; // data
 	atomic<struct VNode *>pointv; // pointer to its vertex
@@ -135,9 +134,7 @@ typedef struct Snap_VNode{
     //this will have value as the source node which was being processed when it was visited last
 
     int dist_from_source;
-    int BC_path_indicator;
-    int path_cnt;//total shortest path from source 
-    int v_path_cnt;//total shortest path containing BC vertex
+     
     int key;
 
     Snap_VNode(VNode * vnode, Snap_VNode * next_snap_vnode) {
@@ -148,18 +145,14 @@ typedef struct Snap_VNode{
         this -> enext = start_snap_Enode;
         this ->visitedArray = 0;
         dist_from_source = 0;
-        BC_path_indicator = 0;
-        path_cnt = 0;
-        v_path_cnt = 0;
+         
     }
 
     Snap_VNode(int key){
         this->vnext = nullptr;
         this ->visitedArray = 0;
         dist_from_source = 0;
-        BC_path_indicator = 0;
-        path_cnt = 0;
-        v_path_cnt = 0;
+       
     }
 }snap_vlist;
 
@@ -571,9 +564,7 @@ Snap_VNode* snapshot(){
         while(e_snap != nullptr){
             vlist_t * dest_vnode = e_snap->pointe->pointv;
             
-            while(snap_vdest != nullptr && 
-            snap_vdest->pointv->val < 
-            dest_vnode->val )
+            while(snap_vdest != nullptr && snap_vdest->pointv->val < dest_vnode->val )
             {
                 snap_vdest = snap_vdest->vnext;
             }
@@ -603,11 +594,12 @@ Snap_VNode* snapshot(){
               
 }
 
-   /**
+        
+      /*  **
      * @brief This method returns the shortest path from source s to other vertices
      * 
      */
-    int max_dist_for_source(Snap_VNode *s  ){
+    int max_dist_for_source(Snap_VNode *s  ,int tid1 ){
         int max_dist = 0;
         int source_id = s->pointv->val;
         s->dist_from_source = 0;
@@ -645,14 +637,14 @@ Snap_VNode* snapshot(){
     }
 
 
-        float get_diameter(Snap_VNode * head_snap_Vnode ){
+        float get_diameter(int tid , Snap_VNode * head_snap_Vnode ){
             int max_dist = 0;
             Snap_VNode * vsnode = head_snap_Vnode;
 
             vsnode = vsnode->vnext;
 
             while(vsnode != nullptr){
-                int dist = this->max_dist_for_source(vsnode );
+                int dist = this->max_dist_for_source(vsnode , tid );
                 if(dist > max_dist)
                     max_dist = dist;
                 vsnode = vsnode->vnext;

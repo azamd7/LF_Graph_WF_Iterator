@@ -35,10 +35,12 @@ class EdgeReport{
 class Snap_Vnode{ 
     Vnode *vnode
     Snap_VNode* vnext
-    Snap_Enode *ehead   //head of edge linked list
-    int edge_status ; //0->edges havent been processed by any thread 
-                                    // 1-> being processed 2->completed processing
-    int iter_edge_status; //same as above but used during iteration
+    Snap_Enode *head_Enode   //head of edge linked list
+    edge_status ; // {IDLE,ACTIVE,DONE }
+                    //Default : IDLE , ACTIVE : some thread is processing the edge list , DONE : Some thread has completed processing
+                    // IDLE -> ACTIVE -> DONE
+                     
+    iter_edge_status; //same as above but used during iteration operation
 }
 
 class Snap_Enode{
@@ -48,7 +50,7 @@ class Snap_Enode{
 
 
 class Graph {
-    VNode head_vnode;
+    VNode head_Vnode;
 
     Operation AddVertex (k);
     Operation RemoveVertex(k );
@@ -337,9 +339,8 @@ class SnapCollector
     vertex_reports[]
     edge_reports[]
     reconstruct_done = false
-    head_vnode //head of linked list of collected Vnodes
+    head_Vnode //head of linked list of collected Vnodes
 
-    operation addReport(Report * report, int tid)
     operation ReportDelete(Node *victim, nodeType{E,V})
     operation ReportInsert(Node* victim ,nodeType{E,V})
     operation TakeSnapshot()
@@ -349,15 +350,11 @@ class SnapCollector
     operation ReconstructionUsingReports_parallel()
     operation Iterator() 
     operation Iterator_parallel() 
+    operation Deactivate();
+    operation BlockFurtherReports();
     
 }
 
-operation addReport(Report * report, int tid)
-{     
-    temp = reports[tid]
-    if(cas(reports[tid], temp, report))
-        temp->next <- report
-}
 
 operation ReportDelete(Node *victim, nodeType{E,V})
     SC = (dereference) PSC
@@ -365,13 +362,13 @@ operation ReportDelete(Node *victim, nodeType{E,V})
         if(nodeType = V)
             report = VertexReport(victim, DELETE)
             temp = VertexReports[tid]
-                if(cas(VertexReports[tid], temp, report))
-                    temp->next = report
+            if(cas(VertexReports[tid], temp, report))
+                temp->next = report
         else
             report = EdgeReport(victim, DELETE)
             temp = EdgeReports[tid]
-                if(cas(EdgeReports[tid], temp, report))
-                    temp->next = report
+            if(cas(EdgeReports[tid], temp, report))
+                temp->next = report
 
 operation ReportInsert(Node* victim ,nodeType{E,V})
     SC = (dereference) PSC
@@ -437,6 +434,7 @@ operation ReconstructionUsingReports()
 
 
 
+
 operation ReconstructionUsingReports_parallel()
     V[] = SC.read_collected_vnodes() 
     v_reports[] = SC.read_vreports() //returns sorted vreports
@@ -448,44 +446,47 @@ operation ReconstructionUsingReports_parallel()
         (N does not have a DELETE Report in v_reports[] )
 
 
-
-
-    idle_set = {VNodes belonging to Snapshot}    
-    active_set = {}
+    curr_V = SC.head_Vnode
     e_reports[] = SC.read_ereports() //returns sorted edge reports
     //ist iteration
-    while !idle_set.isEmpty() and !SC.reconstruct_done:
-        N = idle_set.remove()
-        active_set.add(V)
-        E[] = SC.read_collected_enodes(N)
-
-        a ENode M belongs to Snapshot iff : 
-            ((M has a reference in E[]) OR
-            (M has INSERT Report in e_reports[]))
-                AND
-            (M has no DELETE Report in e_reports[] )
-                AND
-            (The DESTINATION Vnode of M belongs to snapshot)
+    while curr_V != NULL and !SC.reconstruct_done:
         
-        active_set.remove(N)
+        if(CAS(curr_V.edge_status , IDLE , ACTIVE))
+            E[] = SC.read_collected_enodes(V)
+
+            a ENode M belongs to Snapshot iff : 
+                ((M has a reference in E[]) OR
+                (M has INSERT Report in e_reports[]))
+                    AND
+                (M has no DELETE Report in e_reports[] )
+                    AND
+                (The DESTINATION Vnode of M belongs to snapshot)
+                
+            CAS(curr_V.edge_status , ACTIVE , DONE)
+        
+        curr_V = curr_V->vnext
 
     //2nd Iteration
 
-    while !active_set.isEmpty() and !SC.reconstruct_done:
-        N = active_set.fetch_next()
+    curr_V = SC.head_Vnode
+    while curr_V != NULL and !SC.reconstruct_done:
+        if(curr_V.edge_status = ACTIVE))
 
-        E[] = SC.read_collected_enodes(V)
+            E[] = SC.read_collected_enodes(V)
 
-        a ENode M belongs to Snapshot iff : 
-            ((M has a reference in E[]) OR
-            (M has INSERT Report in e_reports[]))
-                AND
-            (M has no DELETE Report in e_reports[] )
-                AND
-            (The DESTINATION Vnode of M belongs to snapshot)
-        
-        active_set.remove(N)
+            a ENode M belongs to Snapshot iff : 
+                ((M has a reference in E[]) OR
+                (M has INSERT Report in e_reports[]))
+                    AND
+                (M has no DELETE Report in e_reports[] )
+                    AND
+                (The DESTINATION Vnode of M belongs to snapshot)
+            
+            CAS(curr_V.edge_status , ACTIVE , DONE)
 
+        curr_V = curr_V->vnext
+
+    SC.reconstruct_done = true
 
 
 operation Iterator()
@@ -510,49 +511,70 @@ operation Iterator()
 
 
 
+
+
 operation Iterator_parallel()
-    curr_v = head vertex of the graph
+    curr_V = head vertex of the graph
     
-    while curr_v != NULL and SC.isActive() :
-        if curr_v is not marked :
-            SC.collectVnode(curr)
-        curr_v = curr_v.vnext
+    while curr_V != NULL and SC.isActive() :
+        if curr_V is not marked :
+            SC.collectVnode(curr_V)
+        curr_V = curr_V.vnext
 
     SC.BlockFurtherVnodes();
 
-    idle_set = SC.read_collected_vnodes()
-    active_set = {}
+    curr_V = SC.head_Vnode // head of the linked List
 
     //1st iteration
-    while !idle_set.isEmpty() and SC.isactive() :
-        V = idle_set.remove()
+    while curr_V != NULL and SC.isactive() :
+        if(CAS(curr_V.iter_edge_status , IDLE , ACTIVE))
+            
+            curr_E = curr_V.head_Enode //head of the Edge list
+            while curr_E != NULL :
+                if curr_E is not marked : 
+                    SC.collectEnode(curr_V, curr_E)
+                curr_E = currE.next
+            SC.BlockFurtherEnodes(curr_V)
+
+            CAS(curr_V.iter_edge_status , ACTIVE , DONE)
         
-        active_set.add(V)
-
-        curr_e = head of the edge list of V
-        while curr_e != NULL :
-            if curr_e is not marked : 
-                SC.collectEnode(V, curr_e)
-            curr_e = currE.next
-        SC.BlockFurtherEnodes(V)
-
-        active_set.remove(V)
+        curr_V = curr_V->vnext
     
     //2nd Iteration
+    curr_V = SC.head_Vnode
+    while curr_V != NULL and SC.isactive():
+        if(curr_V.iter_edge_status = ACTIVE)
 
-    while active_set.isEmpty() and SC.isactive():
-        V = active_set.fetchNext()
+            curr_E = curr_V.head_Enode //head of the Edge list
+            while curr_E != NULL :
+                if curr_E is not marked : 
+                    SC.collectEnode(curr_V, curr_E)
+                curr_E = currE.next
+            SC.BlockFurtherEnodes(curr_V)
 
-        curr_e = head of the edge list of V
-        while curr_e != NULL :
-            if curr_e is not marked : 
-                SC.collectEnode(V, curr_e)
-            curr_e = currE.next
-        SC.BlockFurtherEnodes(V)
-
-        active_set.remove(V)
+            CAS(curr_V.iter_edge_status , ACTIVE , DONE)
+        
+        curr_V = curr_V->vnext
 
 
+
+operation BlockFurtherReports() 
+
+    for i in range(MAX_THREADS) : 
+        block_rep = EdgeReport(NULL, BLOCK)
+        temp = EdgeReports[tid]
+        if(!cas(EdgeReports[tid], temp, report))//will fail only once
+            temp =  EdgeReports[tid]
+            cas(EdgeReports[tid], temp, report)
+        block_rep->next = temp
+
+        
+        lock_rep = VertexReport(NULL, BLOCK)
+        temp = VertexReports[tid]
+        if(!cas(VertexReports[tid], temp, report))//will fail only once
+            temp =  VertexReports[tid]
+            cas(VertexReports[tid], temp, report)
+        report->next = temp
 
 
 
