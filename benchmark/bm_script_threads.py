@@ -145,13 +145,13 @@ with open(script_log_file, 'w+') as log_f_object:
                                 
                             avg_time_taken_mean = 0
                             if len(avg_time_taken_list)!=0:
-                                if(len(avg_time_taken_list)) > 5:
+                                if(len(avg_time_taken_list)) > 1:
                                     avg_time_taken_list = avg_time_taken_list[2:]
                                 avg_time_taken_mean = int(sum(avg_time_taken_list)/len(avg_time_taken_list))
                             avg_lst.append(avg_time_taken_mean)
                             max_time_taken_mean = 0
                             if len(avg_time_taken_list)!=0:
-                                if(len(max_time_taken_list)) > 5:
+                                if(len(max_time_taken_list)) > 1:
                                     max_time_taken_list = max_time_taken_list[2:]
                                 max_time_taken_mean = int(sum(max_time_taken_list)/len(max_time_taken_list))
                             max_lst.append(max_time_taken_mean)
