@@ -563,7 +563,7 @@ class SnapCollector{
             }
         }
 
-        void reconstructUsingReports(fstream * logfile , bool debug){
+     void reconstructUsingReports(fstream * logfile , bool debug, int tid){
             Snap_Vnode *next_V = head_snap_Vnode;
            
             vector<VertexReport> *vreports  = sorted_vertex_reports_ptr.load();
@@ -703,13 +703,13 @@ class SnapCollector{
                     //update the dest_vnode ptr to next of head snap_vnode
 
                     //fetch the report with source is the cur snap vertex ptr
-                    while(loc_report_index < edge_reports->size() and edge_reports->at(loc_report_index).source->val < loc_snap_vertex_ptr->vnode->val){
+                    while(loc_report_index < ereport_size and edge_reports->at(loc_report_index).source->val < loc_snap_vertex_ptr->vnode->val){
                         loc_report_index++;
                     }
                     Snap_Enode * prev_snap_edge = loc_snap_vertex_ptr->ehead;
                     Snap_Enode * curr_snap_edge = loc_snap_vertex_ptr->ehead->enext;
                     Snap_Vnode * dest_vsnap_ptr = head_snap_Vnode->vnext;
-                    if(loc_report_index == edge_reports->size() || edge_reports->at(loc_report_index).source !=loc_snap_vertex_ptr->vnode )
+                    if(loc_report_index == ereport_size || edge_reports->at(loc_report_index).source !=loc_snap_vertex_ptr->vnode )
                     {
                         //no report exist for the given source...
                         //store -2 in snap_vnodes edge report to indicate no reports for edges of this snap vnode
@@ -773,7 +773,7 @@ class SnapCollector{
                                 //if edge is present delete the edge
                                 if (curr_snap_edge->enode == curr_ereport.enode){
                                     atomic_compare_exchange_strong(&prev_snap_edge->enext ,&curr_snap_edge ,curr_snap_edge->enext.load());
-                                    curr_snap_edge = curr_snap_edge->enext;
+                                    curr_snap_edge = prev_snap_edge->enext;
                                 }
                             
                             }
@@ -872,12 +872,13 @@ class SnapCollector{
             //2nd iteration
             
             loc_snap_vertex_ptr = head_snap_Vnode->vnext;
-            loc_report_index = 0;
+            
             
             //while the snap vertex is not marked ie. marked_end_snap_enode
             while(!is_marked_ref((long)loc_snap_vertex_ptr) and !this->reconstruction_completed)
             {
-                long prev_index;
+                long prev_index = -1;
+                loc_report_index = 0;
                 //if snap vertex edge status = 1 ie. edges are still not processed completely
                 if(loc_snap_vertex_ptr->edge_status == 1){
                     Snap_Enode * prev_snap_edge = loc_snap_vertex_ptr->ehead;
@@ -888,14 +889,14 @@ class SnapCollector{
                     
                     //if snap vnode report index is still -1 ...not updated by other thread
 
-                    if(loc_snap_vertex_ptr->report_index == -1){
+                    if(loc_snap_vertex_ptr->report_index == -1L){
                         //simillar to the above code....fetch the report corresponding to cuur vnode as source of edge report
-                        while(edge_reports->at(loc_report_index).source->val < loc_snap_vertex_ptr->vnode->val and loc_report_index < edge_reports->size()){
+                        while(loc_report_index < ereport_size and edge_reports->at(loc_report_index).source->val < loc_snap_vertex_ptr->vnode->val){
                             loc_report_index++;
                         }
                         prev_index = -1;
                         //if no such report
-                        if(edge_reports->at(loc_report_index).source->val >= loc_snap_vertex_ptr->vnode->val || loc_report_index == edge_reports->size())
+                        if( loc_report_index == ereport_size || edge_reports->at(loc_report_index).source->val >= loc_snap_vertex_ptr->vnode->val )
                         {    
                             //mark edge report as -2
                             
@@ -937,6 +938,7 @@ class SnapCollector{
                                 if ((long)dest_vsnap_ptr == get_marked_ref((long)end_snap_Vnode) || dest_vsnap_ptr->vnode != curr_snap_edge->enode->v_dest){
                                     //delete the edge
                                     Snap_Enode * tmp_snap_edge =  curr_snap_edge;
+                                    atomic_compare_exchange_strong(&prev_snap_edge->enext , &tmp_snap_edge , curr_snap_edge->enext.load());
                                     curr_snap_edge = curr_snap_edge->enext;
                                 }
                                 else{
@@ -958,7 +960,7 @@ class SnapCollector{
                                 //if edge is present delete the edge
                                 if (curr_snap_edge->enode == curr_ereport.enode){
                                     atomic_compare_exchange_strong(&prev_snap_edge->enext ,&curr_snap_edge ,curr_snap_edge->enext.load());
-                                    curr_snap_edge = curr_snap_edge->enext;
+                                    curr_snap_edge = prev_snap_edge->enext;
                                 }
                             
                             }
@@ -1026,6 +1028,7 @@ class SnapCollector{
                         if ((long)dest_vsnap_ptr == get_marked_ref((long)end_snap_Vnode) || dest_vsnap_ptr->vnode != curr_snap_edge->enode->v_dest){
                             //delete the edge
                             Snap_Enode * tmp_snap_edge =  curr_snap_edge;
+                            atomic_compare_exchange_strong(&prev_snap_edge->enext , &tmp_snap_edge , curr_snap_edge->enext.load());
                             curr_snap_edge = curr_snap_edge->enext;
                         }
                         else{
@@ -1052,7 +1055,6 @@ class SnapCollector{
             this->reconstruction_completed = true;
             
         }
-    
         Snap_Vnode * containsSnapV(fstream * logfile, bool debug , int key){
             Snap_Vnode * snap_Vnode_ptr =  this->head_snap_Vnode->vnext;
             //only end_snap_Vnode is marked after reconstruction

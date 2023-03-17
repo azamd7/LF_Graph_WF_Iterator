@@ -916,6 +916,7 @@ class SnapCollector{
                                 if ((long)dest_vsnap_ptr == get_marked_ref((long)end_snap_Vnode) || dest_vsnap_ptr->vnode != curr_snap_edge->enode->v_dest){
                                     //delete the edge
                                     Snap_Enode * tmp_snap_edge =  curr_snap_edge;
+                                    //atomic_compare_exchange_strong(&prev_snap_edge->enext , &tmp_snap_edge , curr_snap_edge->enext.load());
                                     curr_snap_edge = curr_snap_edge->enext;
                                 }
                                 else{
@@ -937,7 +938,7 @@ class SnapCollector{
                                 //if edge is present delete the edge
                                 if (curr_snap_edge->enode == curr_ereport.enode){
                                     atomic_compare_exchange_strong(&prev_snap_edge->enext ,&curr_snap_edge ,curr_snap_edge->enext.load());
-                                    curr_snap_edge = curr_snap_edge->enext;
+                                    curr_snap_edge = prev_snap_edge->enext;
                                 }
                             
                             }
@@ -1005,6 +1006,7 @@ class SnapCollector{
                         if ((long)dest_vsnap_ptr == get_marked_ref((long)end_snap_Vnode) || dest_vsnap_ptr->vnode != curr_snap_edge->enode->v_dest){
                             //delete the edge
                             Snap_Enode * tmp_snap_edge =  curr_snap_edge;
+                            //atomic_compare_exchange_strong(&prev_snap_edge->enext , &tmp_snap_edge , curr_snap_edge->enext.load());
                             curr_snap_edge = curr_snap_edge->enext;
                         }
                         else{
