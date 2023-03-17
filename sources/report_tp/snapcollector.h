@@ -27,13 +27,11 @@ class Snap_Enode {
         int key;
         Enode * enode;
         atomic<Snap_Vnode *> d_vnode; //dest_vnode
-        int * visitedArray;// size same as threads // used to indicate whether the node has beeen visited by the given thread
         
 
         Snap_Enode(Enode * enode, Snap_Enode * enext) {
             this -> enext = enext; 
             this -> enode = enode;
-            visitedArray = new int[total_threads]{0};
             d_vnode.store(nullptr);
             if(enode != nullptr)
                 this->key = enode->val;
@@ -43,14 +41,12 @@ class Snap_Enode {
             this -> enext = enext; 
             this -> enode = enode;
             this -> d_vnode = d_vnode;
-            visitedArray = new int[total_threads]{0};
             if(enode != nullptr)
                 this->key = enode->val;
             
         }
 
         ~Snap_Enode(){
-            delete[] visitedArray;
             
         }
 };
@@ -70,7 +66,6 @@ class Snap_Vnode {
                                     // 1-> being processed 2->completed processing
         atomic<int> iter_edge_status;
         atomic<long> report_index;
-        int * visitedArray;
 
     //is_reconstruct is true then end enode is marked
     Snap_Vnode(Vnode * vnode, Snap_Vnode * next_snap_vnode, bool is_reconstruct = false) {
@@ -84,8 +79,7 @@ class Snap_Vnode {
             start_snap_Enode = new Snap_Enode(this->vnode-> ehead, (Snap_Enode *)set_mark((long)end_snap_Enode));           
         this -> ehead = start_snap_Enode;
         
-        this->visitedArray = new int[total_threads]{0};
-
+        
         iter_edge_status = {0};
         edge_status = {0};
         report_index = {-1};
@@ -1048,10 +1042,7 @@ class SnapCollector{
             return nullptr;
         }
 
-        // check for visited  
-        bool checkVisited(int tid, Snap_Vnode *v, int cValue){
-            return v->visitedArray[tid] == cValue;
-        }
+        
 
         void ADDToBFSTree(bfslist_t **BFSHead, bfslist_t **BFSTail, bfslist_t *node){
             if((*BFSHead)->next == (*BFSTail))
@@ -1089,70 +1080,6 @@ class SnapCollector{
 
 
 
-        bool getBFS(fstream * logfile ,bool debug,int tid, int key){
-            //check if snap vnode exit for the given key
-            Snap_Vnode* snap_Vnode_ptr = containsSnapV(logfile ,debug , key);
-            if(snap_Vnode_ptr == nullptr)
-                return false;
-            
-            Vnode * tmp_Vnode = new Vnode(INT_MAX , nullptr , nullptr);
-            Snap_Vnode *  bTail = new Snap_Vnode(tmp_Vnode , nullptr );
-            tmp_Vnode = new Vnode(INT_MIN , nullptr, nullptr);
-            Snap_Vnode *  bHead = new Snap_Vnode(tmp_Vnode , nullptr);
-
-            bfslist_t *BFSHead = createBFSNode(bHead, NULL, NULL); 
-            bfslist_t *BFSTail = createBFSNode(bTail, BFSHead, NULL);
-
-            BFSHead->next = BFSTail;
-            BFSTail->back = NULL;
-            BFSHead->back = NULL;
-
-
-            int edgecount = BFSTreeCollect( tid,snap_Vnode_ptr, *BFSHead, *BFSTail);           
-            
-            return true;
-
-        }
-
-       
-
-        // get the path from key1 to key2     
-        int BFSTreeCollect(int tid, Snap_Vnode *u, bfslist_t &bfsHead, bfslist_t &bfsTail){
-            Snap_Enode * eHead;
-            bfslist_t *bfsHead1 = &bfsHead, *bfsTail1 = &bfsTail;
-            //int i;
-            int edgecount = 0;
-            queue <struct BFSNode*> Q;
-            //Init(tid);
-            cnt = cnt + 1;
-            //u->starttime[tid] = time;
-            u->visitedArray[tid] = cnt; // mark visited
-            bfslist_t *bfsNode = createBFSNode(u,NULL,NULL);
-            ADDToBFSTree(&bfsHead1, &bfsTail1, bfsNode);// add to the BFS-tree
-            Q.push(bfsNode);
-            while(!Q.empty()){ // run until que is not empty
-                BFSNode * currentVNode = Q.front(); // get the front
-                Q.pop(); // deque
-                eHead = currentVNode->n->ehead;
-                //here in the edge list only the end_snap_Enode is marked hence the stopping condition
-                for(Snap_Enode * itNode = eHead->enext.load(); is_marked_ref((long)itNode->enext.load() ); itNode = itNode ->enext.load()){ // iterate through all adjacency vertices 
-                //  cout<<"itNode:"<<itNode->key<<endl;
-                    edgecount = edgecount + 1;  
-                     
-                    Snap_Vnode *adjVNode = itNode->d_vnode; // get the vertex
-                   
-                    if(!checkVisited(tid, adjVNode, cnt) ){ // check vertex is visited or not
-                        
-                        adjVNode->visitedArray[tid] = cnt; // mark visited
-                        bfslist_t *bfsNode1 = createBFSNode(adjVNode, currentVNode,NULL);
-                        ADDToBFSTree(&bfsHead1, &bfsTail1, bfsNode1);// add to the BFS-tree
-                        //edgecount = edgecount + 1;  
-                        Q.push(bfsNode1); // enque to Q
-                    }
-                } 
-            } 
-            return edgecount;                
-        }
         
 
      
