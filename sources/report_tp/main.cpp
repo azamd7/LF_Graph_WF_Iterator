@@ -614,103 +614,102 @@ void *thread_funct(void * t_args){
     int op_index;
     while(continue_exec){
        
-     
+        
         op_index = d(gen);
         switch(op_index) {
-        case 0://add vertex
-            {
-                int rand_node_id = rand() % max_nodes + 1; 
-                if(debug) 
-                    logfile_th << " thread id : " << thread_num << "Add vertex  : " << rand_node_id << endl;
-                graph->AddVertex(rand_node_id,thread_num,&logfile_th,debug );
-                if(continue_exec)
-                    ops[thread_num]++;
-            }
-            break;
-        case 1:
-            // delete vertex
-            {
-                int rand_node_id = rand() % max_nodes + 1;   
-                if(debug)
-                    logfile_th << " thread id : " << thread_num << "Delete vertex : " << rand_node_id << endl;
-                graph->RemoveVertex(rand_node_id,thread_num,&logfile_th, debug);
-                if(continue_exec)
-                    ops[thread_num]++;
-            }
-            break;
-        case 2:
-            // add edge
-            {
-                int rand_source = rand() % max_nodes + 1; 
-                int rand_dest = rand() % max_nodes + 1;
-                while(rand_dest == rand_source){
-                    rand_dest = rand() % max_nodes + 1;
-                }
-                if(debug)   
-                    logfile_th << " thread id : " << thread_num << "Add edge : " << rand_source << " " << rand_dest << endl;
-                graph->AddEdge(rand_source , rand_dest , thread_num,&logfile_th,debug);
-                if(continue_exec)
-                    ops[thread_num]++;
-            }
-            break;
-        case 3:
-            //delete edge
-            {   int rand_source = rand() % max_nodes + 1; 
-                int rand_dest = rand() % max_nodes + 1;
-                while(rand_dest == rand_source){
-                    rand_dest = rand() % max_nodes + 1;
-                }
-                if(debug)
-                    logfile_th << " thread id : " << thread_num << " Delete edge : " << rand_source << " " << rand_dest  << endl;
-                graph->RemoveE(rand_source , rand_dest , thread_num,&logfile_th,debug);
-                if(continue_exec)
-                    ops[thread_num]++;
-            }
-            break;
-        case 4:
-            //contains edge
-            {   int rand_source = rand() % max_nodes + 1; 
-                int rand_dest = rand() % max_nodes + 1; 
-                while(rand_dest == rand_source){
-                    rand_dest = rand() % max_nodes + 1; 
-                }
-                if(debug)
-                    logfile_th << " thread id : " << thread_num << " Contians Edge : " << rand_source << " " << rand_dest  << endl;
-                graph->ContainsE(rand_source , rand_dest , thread_num,&logfile_th,debug);
-                if(continue_exec)
-                    ops[thread_num]++;
-            }
-            break;
-        case 5:
-            //contains vertex
-            {   int node_id = rand() % max_nodes + 1; 
-                
-                if(debug)
-                    logfile_th << " thread id : " << thread_num << " Contains vertex : " << node_id  << endl;
-                graph->ContainsV(node_id , thread_num,&logfile_th,debug);
-                if(continue_exec)
-                    ops[thread_num]++;
-            }
-        break;
-        case 6:
-            //snapshot
-            {       
-                    
-                    //print_graph(&logfile_th , graph->head);
-                    SnapCollector * sc =  takeSnapshot(graph->head , max_threads, &logfile_th,debug, thread_num);
-                    
+            case 0://add vertex
+                {
+                    int rand_node_id = rand() % max_nodes + 1; 
+                    if(debug) 
+                        logfile_th << " thread id : " << thread_num << "Add vertex  : " << rand_node_id << endl;
+                    graph->AddVertex(rand_node_id,thread_num,&logfile_th,debug );
                     if(continue_exec)
                         ops[thread_num]++;
-                    
-                    if(debug){ 
-                        
-                        sc->print_snap_graph(&logfile_th);
+                }
+                break;
+            case 1:
+                // delete vertex
+                {
+                    int rand_node_id = rand() % max_nodes + 1;   
+                    if(debug)
+                        logfile_th << " thread id : " << thread_num << "Delete vertex : " << rand_node_id << endl;
+                    graph->RemoveVertex(rand_node_id,thread_num,&logfile_th, debug);
+                    if(continue_exec)
+                        ops[thread_num]++;
+                }
+                break;
+            case 2:
+                // add edge
+                {
+                    int rand_source = rand() % max_nodes + 1; 
+                    int rand_dest = rand() % max_nodes + 1;
+                    while(rand_dest == rand_source){
+                        rand_dest = rand() % max_nodes + 1;
                     }
+                    if(debug)   
+                        logfile_th << " thread id : " << thread_num << "Add edge : " << rand_source << " " << rand_dest << endl;
+                    graph->AddEdge(rand_source , rand_dest , thread_num,&logfile_th,debug);
+                    if(continue_exec)
+                        ops[thread_num]++;
+                }
+                break;
+            case 3:
+                //delete edge
+                {   int rand_source = rand() % max_nodes + 1; 
+                    int rand_dest = rand() % max_nodes + 1;
+                    while(rand_dest == rand_source){
+                        rand_dest = rand() % max_nodes + 1;
+                    }
+                    if(debug)
+                        logfile_th << " thread id : " << thread_num << " Delete edge : " << rand_source << " " << rand_dest  << endl;
+                    graph->RemoveE(rand_source , rand_dest , thread_num,&logfile_th,debug);
+                    if(continue_exec)
+                        ops[thread_num]++;
+                }
+                break;
+            case 4:
+                //contains edge
+                {   int rand_source = rand() % max_nodes + 1; 
+                    int rand_dest = rand() % max_nodes + 1; 
+                    while(rand_dest == rand_source){
+                        rand_dest = rand() % max_nodes + 1; 
+                    }
+                    if(debug)
+                        logfile_th << " thread id : " << thread_num << " Contians Edge : " << rand_source << " " << rand_dest  << endl;
+                    graph->ContainsE(rand_source , rand_dest , thread_num,&logfile_th,debug);
+                    if(continue_exec)
+                        ops[thread_num]++;
+                }
+                break;
+            case 5:
+                //contains vertex
+                {   int node_id = rand() % max_nodes + 1; 
+                    
+                    if(debug)
+                        logfile_th << " thread id : " << thread_num << " Contains vertex : " << node_id  << endl;
+                    graph->ContainsV(node_id , thread_num,&logfile_th,debug);
+                    if(continue_exec)
+                        ops[thread_num]++;
+                }
+                break;
+            case 6:
+                //snapshot
+                {       
+                        
+                        //print_graph(&logfile_th , graph->head);
+                        SnapCollector * sc =  takeSnapshot(graph->head , max_threads, &logfile_th,debug, thread_num);
+                        
+                        if(continue_exec)
+                            ops[thread_num]++;
+                        
+                        if(debug){ 
+                            
+                            sc->print_snap_graph(&logfile_th);
+                        }
+                    
                 
-               
-            }
-            break;
-        
+                }
+                break;
        
         }
     }
