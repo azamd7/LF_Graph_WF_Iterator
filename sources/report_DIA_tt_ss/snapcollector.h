@@ -887,7 +887,7 @@ class SnapCollector{
             //while the snap vertex is not marked ie. marked_end_snap_enode
             while(!is_marked_ref((long)loc_snap_vertex_ptr) and !this->reconstruction_completed)
             {
-                long prev_index;
+                long prev_index = -1;
                 //if snap vertex edge status = 1 ie. edges are still not processed completely
                 if(loc_snap_vertex_ptr->edge_status == 1){
                     Snap_Enode * prev_snap_edge = loc_snap_vertex_ptr->ehead;
@@ -947,7 +947,8 @@ class SnapCollector{
                                 if ((long)dest_vsnap_ptr == get_marked_ref((long)end_snap_Vnode) || dest_vsnap_ptr->vnode != curr_snap_edge->enode->v_dest){
                                     //delete the edge
                                     Snap_Enode * tmp_snap_edge =  curr_snap_edge;
-                                    curr_snap_edge = curr_snap_edge->enext;
+                                    atomic_compare_exchange_strong(&prev_snap_edge->enext , &tmp_snap_edge , curr_snap_edge->enext.load());
+                                    curr_snap_edge = prev_snap_edge->enext;
                                 }
                                 else{
                                 

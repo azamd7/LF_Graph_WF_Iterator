@@ -27,17 +27,21 @@ class Snap_Enode {
         int key;
         Enode * enode;
         atomic<Snap_Vnode *> d_vnode; //dest_vnode
+        int * visitedArray;// size same as threads // used to indicate whether the node has beeen visited by the given thread
         
 
         Snap_Enode(Enode * enode, Snap_Enode * enext) {
+            
             this -> enext = enext; 
             this -> enode = enode;
+            this -> d_vnode = nullptr;
             d_vnode.store(nullptr);
             if(enode != nullptr)
                 this->key = enode->val;
             
         }
         Snap_Enode(Enode * enode, Snap_Enode * enext, Snap_Vnode * d_vnode) {
+           
             this -> enext = enext; 
             this -> enode = enode;
             this -> d_vnode = d_vnode;
@@ -67,19 +71,20 @@ class Snap_Vnode {
         atomic<int> iter_edge_status;
         atomic<long> report_index;
 
+      
     //is_reconstruct is true then end enode is marked
     Snap_Vnode(Vnode * vnode, Snap_Vnode * next_snap_vnode, bool is_reconstruct = false) {
         
         this -> vnode = vnode;
         this -> vnext = next_snap_vnode;
         Snap_Enode * start_snap_Enode;
-        if (!is_reconstruct)
+        if (!is_reconstruct){
             start_snap_Enode = new Snap_Enode(this->vnode-> ehead, end_snap_Enode);
+        }
         else
             start_snap_Enode = new Snap_Enode(this->vnode-> ehead, (Snap_Enode *)set_mark((long)end_snap_Enode));           
         this -> ehead = start_snap_Enode;
-        
-        
+
         iter_edge_status = {0};
         edge_status = {0};
         report_index = {-1};
@@ -92,7 +97,6 @@ class Snap_Vnode {
         this -> vnext = next_snap_vnode;
         Snap_Enode * start_snap_Enode = new Snap_Enode(this->vnode-> ehead, end_snap_Enode);
         this -> ehead = start_snap_Enode;
-        
 
         edge_status = {0};
         report_index = {-1};
@@ -107,7 +111,6 @@ class Snap_Vnode {
             tmp_next = tmp_next->enext;
             delete tmp;
         }
-
     }
 };
 
@@ -257,6 +260,7 @@ class SnapCollector{
 
         atomic<bool> reconstruction_completed;
 
+        atomic<bool> iteration_completed;
 
 
         //Here head points to the "start_vnode" of the original graph 
@@ -275,6 +279,7 @@ class SnapCollector{
             //++threads_accessing;
             
             reconstruction_completed = {false};
+            iteration_completed = {false};
 
         }
 
@@ -545,7 +550,7 @@ class SnapCollector{
             }
         }
 
-         void reconstructUsingReports(fstream * logfile , bool debug){
+        void reconstructUsingReports(fstream * logfile , bool debug){
             Snap_Vnode *next_V = head_snap_Vnode;
            
             vector<VertexReport> *vreports  = sorted_vertex_reports_ptr.load();
@@ -867,7 +872,7 @@ class SnapCollector{
             //while the snap vertex is not marked ie. marked_end_snap_enode
             while(!is_marked_ref((long)loc_snap_vertex_ptr) and !this->reconstruction_completed)
             {
-                long prev_index;
+                long prev_index = -1;
                 //if snap vertex edge status = 1 ie. edges are still not processed completely
                 if(loc_snap_vertex_ptr->edge_status == 1){
                     Snap_Enode * prev_snap_edge = loc_snap_vertex_ptr->ehead;
@@ -927,7 +932,8 @@ class SnapCollector{
                                 if ((long)dest_vsnap_ptr == get_marked_ref((long)end_snap_Vnode) || dest_vsnap_ptr->vnode != curr_snap_edge->enode->v_dest){
                                     //delete the edge
                                     Snap_Enode * tmp_snap_edge =  curr_snap_edge;
-                                    curr_snap_edge = curr_snap_edge->enext;
+                                    atomic_compare_exchange_strong(&prev_snap_edge->enext , &tmp_snap_edge , curr_snap_edge->enext.load());
+                                    curr_snap_edge = prev_snap_edge->enext;
                                 }
                                 else{
                                 
@@ -1046,7 +1052,6 @@ class SnapCollector{
         }
     
 
-
         Snap_Vnode * containsSnapV(fstream * logfile, bool debug , int key){
             Snap_Vnode * snap_Vnode_ptr =  this->head_snap_Vnode->vnext;
             //only end_snap_Vnode is marked after reconstruction
@@ -1061,46 +1066,7 @@ class SnapCollector{
             return nullptr;
         }
 
-        
-
-        void ADDToBFSTree(bfslist_t **BFSHead, bfslist_t **BFSTail, bfslist_t *node){
-            if((*BFSHead)->next == (*BFSTail))
-            {
-                node->next = (*BFSTail);
-                node->back = NULL;
-                (*BFSHead)->next = node;
-                (*BFSTail)->back = node;
-                (*BFSTail)->next = NULL;
-            }
-            else
-            {
-                node->next = (*BFSTail);
-                node->back = NULL;
-                (*BFSTail)->back->next = node;
-                (*BFSTail)->back = node;
-                (*BFSTail)->next = NULL;
-            } 
-        }
-        
-        void FreeBFSGraph(bfslist_t *ListH){
-            //int i;
-            bfslist_t * ListH1 = ListH->next;
-            bfslist_t * temp = ListH;
-            while(ListH1->next != NULL){
-                temp->n =NULL;
-                temp->p =NULL;
-                temp->back =NULL;
-                temp->next =NULL;
-                free(temp);
-                temp = ListH1;
-                ListH1 = ListH1->next;
-            }   
-        }  
-
-
-
-        
-
+      
      
         void print_snap_graph(fstream *logfile){
             (*logfile) << "Snapped Graph ---------- of snapshot : " << this  << endl;
@@ -1127,12 +1093,12 @@ class SnapCollector{
                     //else
                     //    (*logfile) << e_val <<"(" << snap_enode->enode->v_dest << ") " <<endl ;
 
-                    //if(snap_enode->d_vnode== nullptr){
-                    //    (*logfile) << e_val <<"(" << snap_enode->enode->v_dest << ") HoBO" <<endl ;
-                    //}
-                    //else{
+                    if(snap_enode->d_vnode== nullptr){
+                        (*logfile) << e_val <<"(" << snap_enode->enode->v_dest << ") HoBO" <<endl ;
+                    }
+                    else{
                         (*logfile) << e_val <<"(" << snap_enode->enode->v_dest << ") " <<endl ;
-                    //}
+                    }
 
                     //if((long)snap_enode->d_vnode.load() > 100L){
                     //    (*logfile) << e_val <<"(" << snap_enode->d_vnode << ") " <<  flush ;
@@ -1197,7 +1163,7 @@ SnapCollector * acquireSnapCollector(Vnode * graph_head, int max_threads,fstream
  * @param max_threads max number of threads that will can access/create the snapshot object
  * @return  ** SnapCollector 
  */
-SnapCollector * takeSnapshot(Vnode * graph_head ,  int max_threads,fstream * logfile ,bool debug, int tid){
+SnapCollector * takeSnapshot(Vnode * graph_head ,  int max_threads,fstream * logfile ,bool debug , int tid){
     SnapCollector *SC = acquireSnapCollector(graph_head , max_threads , logfile, debug);
     if(debug)
         (*logfile) << "Snapshot : " << SC << endl;
@@ -1213,7 +1179,7 @@ SnapCollector * takeSnapshot(Vnode * graph_head ,  int max_threads,fstream * log
     SC->blockFurtherReports(logfile,debug);
     if(debug)
         (*logfile) << "Reports Blocked" << endl;
-    SC->reconstructUsingReports(logfile,debug, tid);
+    SC->reconstructUsingReports(logfile,debug);
     if(debug)
         (*logfile) << "Reconstruction Completed" << endl;
 
