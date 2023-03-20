@@ -698,7 +698,7 @@ void *thread_funct(void * t_args){
                     //sc->getBFS(&logfile_th , debug , thread_num, key );
                    
                     
-                    float bc = sc->get_diameter( thread_num, debug, &logfile_th);
+                    float bc = sc->get_diameter( thread_num, &logfile_th,debug);
                     //cout << bc << endl;
                     //int key = rand() % max_nodes;
                     //cout << bc << endl;
