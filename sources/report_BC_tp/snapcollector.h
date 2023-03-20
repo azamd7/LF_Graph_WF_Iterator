@@ -13,7 +13,7 @@ using namespace std;
 class SnapCollector;
 
 atomic<SnapCollector *> PSC = {nullptr};
-int total_threads ;
+int total_threads = 16;
 thread_local int cnt = 1; // thread local variable , used in the visited list
 
 
@@ -346,7 +346,7 @@ class SnapCollector{
         }
    
 
-          void iterator(fstream * logfile, bool debug){
+         void iterator(fstream * logfile, bool debug){
             if(debug)
                 (*logfile) << "Vertex Iteration" << endl;
             while( ! this->read_edge){
@@ -514,8 +514,7 @@ class SnapCollector{
 
            
         }
-         
-
+       
         /**
          * @brief This method adds block nodes at the head of each threads edge report and vertex report linked list
          * 
@@ -572,7 +571,7 @@ class SnapCollector{
             }
         }
 
-          void reconstructUsingReports(fstream * logfile , bool debug){
+       void reconstructUsingReports(fstream * logfile , bool debug){
             Snap_Vnode *next_V = head_snap_Vnode;
            
             vector<VertexReport> *vreports  = sorted_vertex_reports_ptr.load();
@@ -1072,6 +1071,7 @@ class SnapCollector{
             
         }
     
+  
         Snap_Vnode * containsSnapV(fstream * logfile, bool debug , int key){
             Snap_Vnode * snap_Vnode_ptr =  this->head_snap_Vnode->vnext;
             //only end_snap_Vnode is marked after reconstruction
