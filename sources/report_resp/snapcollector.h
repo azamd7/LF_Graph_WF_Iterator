@@ -390,12 +390,13 @@ class SnapCollector{
             }
           
             Snap_Vnode * snap_edge_vertex_ptr = head_snap_Vnode->vnext;// used to identify current vertex we are iterating
+            int tmp  = 0;
             //iterate through the edge
             ///ist iteration
 
             while (!is_marked_ref((long)snap_edge_vertex_ptr) and !this->iteration_completed){
                 
-                int tmp = 0;    
+                tmp = 0;    
                 if(atomic_compare_exchange_strong(&snap_edge_vertex_ptr->iter_edge_status , &tmp , 1)){
                     Snap_Enode *curr_snap_Enode = snap_edge_vertex_ptr->ehead;//next of ehead will never me marked
                     Snap_Enode *next_snap_Enode = curr_snap_Enode->enext.load();
@@ -483,6 +484,8 @@ class SnapCollector{
                             curr_snap_Enode = curr_snap_Enode->enext;
                         }
                     }
+                    tmp = 1;
+                    atomic_compare_exchange_strong(&snap_edge_vertex_ptr->iter_edge_status , &tmp , 2);
                 }
                 snap_edge_vertex_ptr = snap_edge_vertex_ptr ->vnext;
             }
