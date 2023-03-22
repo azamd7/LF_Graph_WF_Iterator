@@ -230,7 +230,7 @@ operation locV(v, k){
 
 
 
-procedure locE(, k){
+procedure locE(v, k){
     while (true) do
         pe <- v ; ce <- pe.enxt;
         while (true) do
