@@ -15,9 +15,10 @@ date_time_obj =now.strftime('%H_%M_%S')
 threads = [13,26,52,78,102] 
 #threads = [4,8]
 algos = [ "icdcn_resp" , "report_resp" , "opodis_resp" ]
+algos = ["report_BC_tt_ss_update"]
 debug = False
 main_file = "main.cpp"
-iterations = 5
+iterations = 6
 test_duration = "10" #no of sec before stop executions
 init_vertices = str(10**4)
 init_edges = str(2 * (10**4))
@@ -52,7 +53,7 @@ with open(script_log_file, 'w+') as log_f_object:
         print("\n\n\n\n\n\nProbablity Dist: "+ key +" " + str( dist_probs[key])  ,file = log_f_object,flush = True)
         
         #for i in range(2,11,2):
-        for i in [0,2,6,10]:
+        for i in [2,6,10]:
             dist_prob = dist_probs[key].copy()
             print("\n\nSnapshot Dist: "+str(i)  ,file = log_f_object,flush = True)
             if(i != 0):
