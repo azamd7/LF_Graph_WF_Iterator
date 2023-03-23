@@ -263,6 +263,9 @@ class SnapCollector{
 
         atomic<bool> iteration_completed;
 
+        atomic<long> vertex_iter_counter ;
+        atomic<long> vertex_reconstruct_counter;
+
 
         //Here head points to the "start_vnode" of the original graph 
         SnapCollector(Vnode * head , int no_of_threads){
@@ -281,6 +284,9 @@ class SnapCollector{
             
             reconstruction_completed = {false};
             iteration_completed = {false};
+
+            vertex_iter_counter = {0};
+            vertex_reconstruct_counter = {0};
 
         }
 
