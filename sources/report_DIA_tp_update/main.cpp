@@ -693,7 +693,7 @@ void *thread_funct(void * t_args){
             //snapshot
             {
                     //print_graph(&logfile_th , graph->head);
-                    SnapCollector * sc =  takeSnapshot(graph->head , max_threads, &logfile_th,debug);
+                    SnapCollector * sc =  takeSnapshot(graph->head , max_threads, &logfile_th,debug,thread_num);
                     //int key = rand() % max_nodes;
                     //sc->getBFS(&logfile_th , debug , thread_num, key );
                    
