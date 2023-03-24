@@ -57,11 +57,17 @@ TIME_DIFF * difference;
 
 
 typedef struct infothread{
-  long tid;
-  slist G;
-  int threadnum;
-  double * ops;
-  vector<double> * dist_prob;
+    long tid;
+    slist G;
+    int threadnum;
+    double * ops;
+    vector<double> * dist_prob;
+    double * ss_max_times;
+    double * ss_avg_times;
+    double * dia_max_times;
+    double * dia_avg_times;
+    double * total_max_times;
+    double * total_avg_times;
 }tinfo;
 
 
@@ -73,11 +79,19 @@ void* pthread_call(void* t)
         long Tid = ti->tid;
         slist G1=ti->G;
         int threadnum = ti->threadnum;
-
+        double * ss_avg_times = ti->ss_avg_times;
+        double * ss_max_times = ti->ss_max_times;
+        double * dia_avg_times = ti->dia_avg_times;
+        double * dia_max_times = ti->dia_max_times;
+        double * total_avg_times = ti->total_avg_times;
+        double * total_max_times = ti->total_max_times;
         
         double * ops = ti->ops;
         vector<double> * dist_prob = ti->dist_prob;
-        
+
+    vector<double> ss_tts;
+    vector<double> total_tts;
+    vector<double> dia_tts;
 	int u, v;;
     random_device rd;
     mt19937 gen(rd());
@@ -100,8 +114,7 @@ void* pthread_call(void* t)
                 if(v == 0)
                     goto l;
                 G1.AddV(v,NTHREADS);
-                if(cont_exec)
-                    ops[threadnum]++;
+                
                 break;
             }
             case 1:
@@ -110,8 +123,7 @@ void* pthread_call(void* t)
                 if(v == 0)
                     goto l2;
                 G1.RemoveV(v);
-                if(cont_exec)
-                    ops[threadnum]++;
+                
                 break;			
             }
 
@@ -123,8 +135,7 @@ void* pthread_call(void* t)
                 if(u == v || u == 0 || v == 0)	
                     goto l4;
                 G1.AddE(u,v); 
-                if(cont_exec)
-                    ops[threadnum]++;
+                
                 break;			
             }
                
@@ -135,8 +146,7 @@ void* pthread_call(void* t)
                 if(u == v || u == 0 || v == 0)	
                     goto l3;
                 G1.RemoveE(u,v); 
-                if(cont_exec)
-                    ops[threadnum]++;
+                
                 break;	
             }
             
@@ -147,8 +157,7 @@ void* pthread_call(void* t)
                 if(u == v || u == 0 || v == 0)		
                     goto l5;
                 G1.ContainsE(u,v); 
-                if(cont_exec)
-                    ops[threadnum]++;
+                
                 break;			
             }
             case 5:
@@ -158,13 +167,13 @@ void* pthread_call(void* t)
                 if(v == 0)
                     goto l6;
                 G1.ContainsV(v);
-                if(cont_exec)
-                    ops[threadnum]++;
+                
                 break;
             }
             case 6:
             {
                 //if(threadnum == 0){
+                    chrono::high_resolution_clock::time_point startT = chrono::high_resolution_clock::now();
                     snap_vlist * vhead1 = G1.snapshot();
                     snap_vlist * vhead2 = G1.snapshot();
                     while( !G1.compare_snapshot(vhead1 , vhead2) ){
@@ -172,14 +181,55 @@ void* pthread_call(void* t)
                         vhead2 = G1.snapshot();
                     
                     }
-                    G1.get_diameter(threadnum , vhead2);
-                    if(cont_exec)
-                        ops[threadnum]++;
+
+                    chrono::high_resolution_clock::time_point tempT = chrono::high_resolution_clock::now();
+
+                    G1.get_diameter( threadnum,vhead2);
+                    chrono::high_resolution_clock::time_point endT = chrono::high_resolution_clock::now();
+                    //if(cont_exec)
+                    //    ops[threadnum]++;
+                    double total_timeTaken = chrono::duration_cast<chrono::microseconds>(endT-startT).count() ;
+                    double ss_timeTaken = chrono::duration_cast<chrono::microseconds>(tempT-startT).count() ;
+                    double dia_timeTaken = chrono::duration_cast<chrono::microseconds>(endT-tempT).count() ;
+                    ss_tts.push_back(ss_timeTaken);
+                    if (ss_max_times[threadnum] < ss_timeTaken){
+                        ss_max_times[threadnum] = ss_timeTaken;
+                    }
+                    dia_tts.push_back(dia_timeTaken);
+                    if (dia_max_times[threadnum] < dia_timeTaken){
+                        dia_max_times[threadnum] = dia_timeTaken;
+                    }
+                    total_tts.push_back(total_timeTaken);
+                    if (total_max_times[threadnum] < total_timeTaken){
+                        total_max_times[threadnum] = total_timeTaken;
+                    }
                 //}
             }
         }
         
 	}
+    //calculate average of all the timetaken
+    if(ss_tts.size() > 0){
+        double tts_sum = 0;
+        for(double tt : ss_tts){
+            tts_sum += tt;
+        }
+        ss_avg_times[threadnum] = tts_sum / ss_tts.size();
+
+        tts_sum = 0;
+        for(double tt : dia_tts){
+            tts_sum += tt;
+        }
+        dia_avg_times[threadnum] = tts_sum / dia_tts.size();
+
+        tts_sum = 0;
+        for(double tt : total_tts){
+            tts_sum += tt;
+        }
+        total_avg_times[threadnum] = tts_sum / total_tts.size();
+
+    }
+
     return nullptr; 
     
     		
@@ -231,6 +281,14 @@ int main(int argc, char*argv[])
     double *ops = new double[NTHREADS];
     cont_exec.store(true);
 	//cout << "timer started . . ." << endl;
+
+    double * ss_max_times = new double[NTHREADS];
+    double * ss_avg_times = new double[NTHREADS];
+    double * dia_max_times = new double[NTHREADS];
+    double * dia_avg_times = new double[NTHREADS];
+    double * total_max_times = new double[NTHREADS];
+    double * total_avg_times = new double[NTHREADS];
+
 	for (int i=0;i < NTHREADS;i++)
     {
         attr[i].tid = i;
@@ -238,6 +296,12 @@ int main(int argc, char*argv[])
         attr[i].threadnum = i;
         attr[i].ops = ops;
         attr[i].dist_prob = &dist_prob;
+        attr[i].ss_max_times = ss_max_times;
+        attr[i].ss_avg_times = ss_avg_times;
+        attr[i].total_max_times = total_max_times;
+        attr[i].total_avg_times = total_avg_times;
+        attr[i].dia_max_times = dia_max_times;
+        attr[i].dia_avg_times = dia_avg_times;
         pthread_create(&thr[i], nullptr, pthread_call, &attr[i]);
     }
     sleep(seconds);
@@ -248,23 +312,55 @@ int main(int argc, char*argv[])
     {
 		pthread_join(thr[i], NULL);
 	}
-	double max_cnt = 0;
-    double tot_cnt = 0;
-    double avg_cnt = 0;
+	double max_time = 0;
+    double avg_time = 0;
 
     for( int i = 0;i < NTHREADS ; i++){
         //check max
-        if(max_cnt < ops[i]){
-            max_cnt = ops[i];
+        if(max_time < ss_max_times[i]){
+            max_time = ss_max_times[i];
         }
-        tot_cnt += ops[i];
+        avg_time += ss_avg_times[i];
     }
-    //if(avg_cnt != 0.0f)
-    avg_cnt = tot_cnt * 1.0 / (test_duration);
-    max_cnt = max_cnt * 1.0 / (test_duration);
 
-    cout << avg_cnt << fixed << endl;
-    cout << max_cnt << fixed << endl;
+    avg_time = avg_time / NTHREADS;
+
+
+    cout << avg_time << fixed << endl;
+    cout << max_time << fixed << endl;
+
+    max_time = 0;
+    avg_time = 0;
+
+    for( int i = 0;i < NTHREADS ; i++){
+        //check max
+        if(max_time < dia_max_times[i]){
+            max_time = dia_max_times[i];
+        }
+        avg_time += dia_avg_times[i];
+    }
+
+    avg_time = avg_time / NTHREADS;
+
+
+    cout << avg_time << fixed << endl;
+    cout << max_time << fixed << endl;
+
+    max_time = 0;
+    avg_time = 0;
+
+    for( int i = 0;i < NTHREADS ; i++){
+        //check max
+        if(max_time < total_max_times[i]){
+            max_time = total_max_times[i];
+        }
+        avg_time += total_avg_times[i];
+    }
+
+    avg_time = avg_time / NTHREADS;
+
+    cout << avg_time << fixed << endl;
+    cout << max_time << fixed << endl;
 
 	return 0;
 }           

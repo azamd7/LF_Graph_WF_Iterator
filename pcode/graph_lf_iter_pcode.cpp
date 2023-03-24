@@ -561,20 +561,10 @@ operation Iterator_parallel()
 operation BlockFurtherReports() 
 
     for i in range(MAX_THREADS) : 
-        block_rep = EdgeReport(NULL, BLOCK)
-        temp = EdgeReports[tid]
-        if(!cas(EdgeReports[tid], temp, report))//will fail only once
-            temp =  EdgeReports[tid]
-            cas(EdgeReports[tid], temp, report)
-        block_rep->next = temp
-
-        
-        lock_rep = VertexReport(NULL, BLOCK)
-        temp = VertexReports[tid]
-        if(!cas(VertexReports[tid], temp, report))//will fail only once
-            temp =  VertexReports[tid]
-            cas(VertexReports[tid], temp, report)
-        report->next = temp
+        temp = unmarkRef(EdgeReports[tid])
+        cas(EdgeReports[tid], temp, markref(temp))
+        temp = unmarkRef(VertexReports[tid])
+        cas(VertexReports[tid],  temp, markref(temp)))
 
 
 

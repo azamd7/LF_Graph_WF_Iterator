@@ -54,22 +54,26 @@ enum type {APP=0, ADDE, REME, ADDV, REMV };
 struct timeval tv1, tv2, tv3;
 TIME_DIFF * difference1, *difference2;
 
-atomic <int> ops;
-atomic <int> opsUpdate;
-atomic <int> opsLookup;
-atomic <int> opsapp;
-int ***dynamicops; // total number of ops, # rows same as # threads
-double ***updateTime; // Update time with # of other operations
-typedef struct infothread{
-  int tid; //thread ID
-  int core_id; // core id
-  int cols; // column size
-  int wp; // warm up value
-  double * ops; //operations completed by each thread
-  vector<double> * dist_prob;//distribution prob
-  Hash G;
-  double * max_times;
-  double * avg_times;
+    atomic <int> ops;
+    atomic <int> opsUpdate;
+    atomic <int> opsLookup;
+    atomic <int> opsapp;
+    int ***dynamicops; // total number of ops, # rows same as # threads
+    double ***updateTime; // Update time with # of other operations
+    typedef struct infothread{
+    int tid; //thread ID
+    int core_id; // core id
+    int cols; // column size
+    int wp; // warm up value
+    double * ops; //operations completed by each thread
+    vector<double> * dist_prob;//distribution prob
+    Hash G;
+    double * ss_max_times;
+    double * ss_avg_times;
+    double * dia_max_times;
+    double * dia_avg_times;
+    double * total_max_times;
+    double * total_avg_times;
 }tinfo;
 
 long n,m;
@@ -225,9 +229,16 @@ void* pthread_call(void* t)
     //int rc = pthread_setaffinity_np(pid,sizeof(cpu_set_t), &cpuset);
     double * ops = ti->ops;
     vector<double> * dist_prob = ti->dist_prob;
-    double * avg_times = ti->avg_times;
-        double * max_times = ti->max_times;
-            vector<double> tts;//list of time taken for snapshot
+    double * ss_avg_times = ti->ss_avg_times;
+    double * ss_max_times = ti->ss_max_times;
+    double * dia_avg_times = ti->dia_avg_times;
+    double * dia_max_times = ti->dia_max_times;
+    double * total_avg_times = ti->total_avg_times;
+    double * total_max_times = ti->total_max_times;
+
+    vector<double> ss_tts;
+    vector<double> total_tts;
+    vector<double> dia_tts;
 
 	int u, v;;
     random_device rd;
@@ -321,23 +332,32 @@ void* pthread_call(void* t)
                     ss1->collect_ss(G1.Head);
                     SnapGraph *ss2 = new SnapGraph();
                     ss2->collect_ss(G1.Head);
-                    while(!compare_ss_collect(ss1, ss2)){
+                    while(!compare_ss_collect(ss1, ss2) ){
                         ss1->freeHNode();
                         ss1 = ss2;
                         ss2 = new SnapGraph();
                         ss2->collect_ss(G1.Head); 
                     } 
 
-                    
+                    chrono::high_resolution_clock::time_point tempT = chrono::high_resolution_clock::now();
                         
                     float bc = ss2->get_diameter( threadnum );
                     
                     chrono::high_resolution_clock::time_point endT = chrono::high_resolution_clock::now();
-                    double timeTaken = chrono::duration_cast<chrono::microseconds>(endT-startT).count() ;
-
-                    tts.push_back(timeTaken);
-                    if (max_times[threadnum] < timeTaken){
-                        max_times[threadnum] = timeTaken;
+                    double total_timeTaken = chrono::duration_cast<chrono::microseconds>(endT-startT).count() ;
+                    double ss_timeTaken = chrono::duration_cast<chrono::microseconds>(tempT-startT).count() ;
+                    double dia_timeTaken = chrono::duration_cast<chrono::microseconds>(endT-tempT).count() ;
+                    ss_tts.push_back(ss_timeTaken);
+                    if (ss_max_times[threadnum] < ss_timeTaken){
+                        ss_max_times[threadnum] = ss_timeTaken;
+                    }
+                    dia_tts.push_back(dia_timeTaken);
+                    if (dia_max_times[threadnum] < dia_timeTaken){
+                        dia_max_times[threadnum] = dia_timeTaken;
+                    }
+                    total_tts.push_back(total_timeTaken);
+                    if (total_max_times[threadnum] < total_timeTaken){
+                        total_max_times[threadnum] = total_timeTaken;
                     }
                     
                     ss1->freeHNode();
@@ -348,12 +368,24 @@ void* pthread_call(void* t)
         }
 	}
     //calculate average of all the timetaken
-    if(tts.size() > 0){
-        double total_tts = 0;
-        for(double tt : tts){
-            total_tts += tt;
+    if(ss_tts.size() > 0){
+        double tts_sum = 0;
+        for(double tt : ss_tts){
+            tts_sum += tt;
         }
-        avg_times[threadnum] = total_tts / tts.size();
+        ss_avg_times[threadnum] = tts_sum / ss_tts.size();
+
+        tts_sum = 0;
+        for(double tt : dia_tts){
+            tts_sum += tt;
+        }
+        dia_avg_times[threadnum] = tts_sum / dia_tts.size();
+
+        tts_sum = 0;
+        for(double tt : total_tts){
+            tts_sum += tt;
+        }
+        total_avg_times[threadnum] = tts_sum / total_tts.size();
 
     }
     return nullptr; 		
@@ -453,8 +485,12 @@ int main(int argc, char*argv[])
     opsapp = 0;
     gettimeofday(&tv1,NULL);
     double *ops = new double[NTHREADS];
-    double * max_times = new double[NTHREADS];
-    double * avg_times = new double[NTHREADS];
+    double * ss_max_times = new double[NTHREADS];
+    double * ss_avg_times = new double[NTHREADS];
+    double * dia_max_times = new double[NTHREADS];
+    double * dia_avg_times = new double[NTHREADS];
+    double * total_max_times = new double[NTHREADS];
+    double * total_avg_times = new double[NTHREADS];
     cont_exec.store(true);
         for (i=0;i < NTHREADS;i++)
     {
@@ -470,8 +506,12 @@ int main(int argc, char*argv[])
             t->cols = cols_size;
             t->dist_prob = &dist_prob;
             t->ops = ops;
-            t->max_times = max_times;
-        t->avg_times = avg_times;
+           t->ss_max_times = ss_max_times;
+            t->ss_avg_times = ss_avg_times;
+            t->total_max_times = total_max_times;
+            t->total_avg_times = total_avg_times;
+            t->dia_max_times = dia_max_times;
+            t->dia_avg_times = dia_avg_times;
             pthread_create(&thr[i], &attr, pthread_call, (void*)t);
     }
     sleep(test_duration);
@@ -481,19 +521,52 @@ int main(int argc, char*argv[])
     {
             pthread_join(thr[i], NULL);
     }
-    double max_time = 0;
+   double max_time = 0;
     double avg_time = 0;
 
     for( int i = 0;i < NTHREADS ; i++){
         //check max
-        if(max_time < max_times[i]){
-            max_time = max_times[i];
+        if(max_time < ss_max_times[i]){
+            max_time = ss_max_times[i];
         }
-        avg_time += avg_times[i];
+        avg_time += ss_avg_times[i];
     }
 
     avg_time = avg_time / NTHREADS;
 
+
+    cout << avg_time << fixed << endl;
+    cout << max_time << fixed << endl;
+
+    max_time = 0;
+    avg_time = 0;
+
+    for( int i = 0;i < NTHREADS ; i++){
+        //check max
+        if(max_time < dia_max_times[i]){
+            max_time = dia_max_times[i];
+        }
+        avg_time += dia_avg_times[i];
+    }
+
+    avg_time = avg_time / NTHREADS;
+
+
+    cout << avg_time << fixed << endl;
+    cout << max_time << fixed << endl;
+
+    max_time = 0;
+    avg_time = 0;
+
+    for( int i = 0;i < NTHREADS ; i++){
+        //check max
+        if(max_time < total_max_times[i]){
+            max_time = total_max_times[i];
+        }
+        avg_time += total_avg_times[i];
+    }
+
+    avg_time = avg_time / NTHREADS;
 
     cout << avg_time << fixed << endl;
     cout << max_time << fixed << endl;

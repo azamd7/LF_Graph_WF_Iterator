@@ -165,7 +165,7 @@ void* pthread_call(void* t)
                      chrono::high_resolution_clock::time_point startT = chrono::high_resolution_clock::now();
                     snap_vlist * vhead1 = G1.snapshot();
                     snap_vlist * vhead2 = G1.snapshot();
-                    while(cont_exec && !G1.compare_snapshot(vhead1 , vhead2) ){
+                    while(!G1.compare_snapshot(vhead1 , vhead2) ){
                         vhead1 = vhead2;
                         vhead2 = G1.snapshot();
                     

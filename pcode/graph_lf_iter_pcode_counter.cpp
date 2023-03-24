@@ -161,7 +161,7 @@ Operation ContainsEdge(k, l){
         ce ← UnMrkdRf (ce .enxt);
     end while
     
-    if (ce .l = l && !isMrkd (u) && !isMrkd(v) && isMrkd (ce)) then
+    if (ce .l = l && !isMrkd (u) && !isMrkd(v) && !isMrkd (ce)) then
         ReportInsert(ce , E )
         return “EDGE FOUND” ;
     else
@@ -413,7 +413,7 @@ operation CollectSnapshot()
 
 operation ReconstructionUsingReports()
     V[] = SC.read_collected_vnodes() 
-    v_reports[] = SC.read_vreports() //returns sorted vreports
+    v_reports[] = SC.vertex_reports //returns sorted vreports
 
     a VNode N belongs to Snapshot iff : 
         ((N has a reference in V[]) OR
@@ -439,7 +439,7 @@ operation ReconstructionUsingReports()
 
 operation ReconstructionUsingReports_parallel()
     V[] = SC.read_collected_vnodes() 
-    v_reports[] = SC.read_vreports() //returns sorted vreports
+    v_reports[] = SC.read_vreports //returns sorted vreports
 
     a VNode N belongs to Snapshot iff : 
         ((N has a reference in V[]) OR
