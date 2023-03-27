@@ -573,6 +573,37 @@ struct thread_args{
 
 
 
+void copy_snapcollector(SnapCollector * newSC , SnapCollector * oldSC){
+    Snap_Vnode * snap_vnode = oldSC->head_snap_Vnode->vnext;
+
+    Snap_Vnode * curr_vnode = newSC->head_snap_Vnode;
+        while(get_unmarked_ref((long)snap_vnode) != (long)end_snap_Vnode){
+            Snap_Vnode *new_vnode = new Snap_Vnode(snap_vnode->vnode , end_snap_Vnode);
+            curr_vnode->vnext = new_vnode;
+            curr_vnode = new_vnode; 
+
+            Snap_Enode * snap_enode = snap_vnode->ehead->enext;
+            Snap_Enode * curr_enode = new_vnode->ehead;
+            //create new SnapVnode Object with prev SnapVnode as curr_Vnode 
+            
+            
+            while(get_unmarked_ref((long)snap_enode) != (long)end_snap_Enode){
+                
+                Snap_Enode * newEnode = new Snap_Enode(snap_enode->enode , end_snap_Enode);
+                newEnode->d_vnode = snap_enode->d_vnode.load();
+                curr_enode->enext = newEnode;
+                curr_enode = newEnode;
+                snap_enode = snap_enode -> enext;
+            }
+            //Mark the next of last added Snap_Vnode
+            curr_enode->enext = (Snap_Enode *)get_marked_ref((long)end_snap_Enode);
+            snap_vnode = snap_vnode->vnext;
+        }
+        curr_vnode->vnext = (Snap_Vnode *)get_marked_ref((long)end_snap_Vnode);
+
+        //mark the next of last added Snap_Vnode
+        
+}
 
 
 /**
@@ -709,20 +740,27 @@ void *thread_funct(void * t_args){
                     //print_graph(&logfile_th , graph->head);
                     SnapCollector * sc =  takeSnapshot(graph->head , max_threads, &logfile_th,debug ,thread_num);
 
-                    chrono::high_resolution_clock::time_point tempT = chrono::high_resolution_clock::now();
+                    chrono::high_resolution_clock::time_point temp1 = chrono::high_resolution_clock::now();
 
                     //int key = rand() % max_nodes;
                     //sc->getBFS(&logfile_th , debug , thread_num, key );
-                   
+
+
+                    SnapCollector *newSC = new SnapCollector(graph->head , max_threads);
+
+                    copy_snapcollector(newSC , sc);
+
+                    chrono::high_resolution_clock::time_point temp2 = chrono::high_resolution_clock::now();
+
                     
-                    float bc = sc->get_diameter(thread_num, &logfile_th,debug);
+                    float bc = newSC->get_diameter(thread_num, &logfile_th,debug);
                     //cout << bc << endl;
                     //int key = rand() % max_nodes;
                     //cout << bc << endl;
                     chrono::high_resolution_clock::time_point endT = chrono::high_resolution_clock::now();
                     double total_timeTaken = chrono::duration_cast<chrono::microseconds>(endT-startT).count() ;
-                    double ss_timeTaken = chrono::duration_cast<chrono::microseconds>(tempT-startT).count() ;
-                    double dia_timeTaken = chrono::duration_cast<chrono::microseconds>(endT-tempT).count() ;
+                    double ss_timeTaken = chrono::duration_cast<chrono::microseconds>(temp1-startT).count() ;
+                    double dia_timeTaken = chrono::duration_cast<chrono::microseconds>(endT-temp2).count() ;
                     ss_tts.push_back(ss_timeTaken);
                     if (ss_max_times[thread_num] < ss_timeTaken){
                         ss_max_times[thread_num] = ss_timeTaken;
@@ -777,6 +815,7 @@ void *thread_funct(void * t_args){
     return nullptr;
 
 }
+
 
 
 typedef struct init_graph_thread_args{

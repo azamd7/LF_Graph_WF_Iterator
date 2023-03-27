@@ -1,0 +1,65 @@
+We iterate through graph by collecting vertices first and edges of the collected vertices later. This collected data structure is stored within the SnapCollector Object.
+
+
+Snap Collector Object : 
+    #- brief info regarding contents of snapcollector object and its content.
+      SnapCollector Object maintains a list of Snap_Vnode and their corresponding Snap_Enode Objects which are created using the collected VNodes and ENodes. It  holds the head of the Snap_Vnode list through with we can access the collected graph. It also contains the list of reports of vertices and edges corresponding to each thread. Here SC is used to indicate SnapCollector.
+    #    - nodes list
+    #    - corresponding edge list
+    #    - threads consisting of reports
+    #Fields
+    Important variables and operations within SnapCollector Object as follows.
+
+    //(make the field name in italic)
+
+    - PSC : Global pointer that points to the current SC Object.
+
+    - head_Vnode : Holds the pointer to the first vertex of the ordered vertex list of the collected graph.
+
+    - active : A boolean value that indicates if there are any threads which are currently taking snapshot using the current SC. This field is italic(true) when a SC object is created and italic(false) after any thread has completed the iteration of graph vertices and edges.
+    
+    - Vreports : The head of the linked list of Vertex reports corresponding to each thread is stored here. Whenever a thread performs any vertex updation it adds the respective report if the current SC object is Active.
+    
+    - Ereports : This is simillar to italic(Vreports) except the threads adds reports when there is an edge updation.
+
+    - reconstruct_done : A boolean value to indicate some thread has already completed the reconstruction of the graph from the reports.
+
+
+
+    #Functions
+
+    - isActive / Deactivate : italic(IsActive) method simply reads the boolean field italic(active) and italic(deactive) writes italic(false) to italic(active).
+
+    - collectVnode(Vnode *) : SC Object maintains a list of collected vertices (italic(Snap_Vnode)) which can be access through the italic(head_vnode). This methods creates a  Snap_Vnode Object and adds to the end of the collected vertices.
+
+    - collectEnode(Snap_Vnode * , Enode *) : Every collected vertices (Snap_Vnode) is also associated to list of collected Edges(Snap_Enode). This method creates a Snap_Enode Object and adds it to end of collected edges (Snap_Enode) of the given Snap_Vnode Object.
+
+    - read_collected_vnodes() : Returns the list of Snap_Vnodes which were collected during iterator operation.
+
+    - read_collected_enodes(Snap_Vnode) : Returns the list of Snap_Enodes which are collected for the given Snap_Vnode.
+
+    - read_vreports() : Returns the Vreports field if not empty else it collects all the Vertex Reports from each threads and stores the sorted reports in the Vreports and returns it.
+
+    - ReportVertex ( VNode , action, tid) : If the current SC Object is Active it creates a Vertex Report Object (line 189) and updates the head of Vertex Report using CAS for the given thread tid. 
+  
+    - ReportEdge ( ENode , action , tid) : This method is simillar to ReportVertex except it creates a Edge Report Object (line 195) and updates the head of Edge Report.
+
+    - AcquireSnapCollector() : Reads the current SC Object from italic(PSC) and returns it if Active. Else create a SC Object and update the PSC using CAS (line 232) to point to the new SC object. It returns the updated value stored in PSC considering some other thread had updated concurrently
+
+    - iterator() : 
+
+    - BlockFurtherReports() : 
+
+    - CollectSnapshot() : 
+
+    - ReconstructionUsingReports() : 
+
+    - TakeSnapshot() :  
+    
+    #- brief info of fields and functions
+    #  -functions 
+    #    - Objective
+    #    - where is it used?
+    #    - mention important lines in the function 
+    #    - function calls that are not mentioned
+      

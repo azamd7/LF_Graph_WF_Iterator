@@ -617,7 +617,7 @@ Snap_VNode* snapshot(){
             eHead = pred_v->enext;
             //(*logfile) << "pred_v " << pred_v << " pred_v->v_path_cnt " << pred_v->v_path_cnt[0] << endl;
             //(*logfile) << "pred_v " << pred_v << " pred_v->path_cnt " << pred_v->path_cnt[0] << endl;
-             for(Snap_ENode * itNode = eHead->enext; itNode!= nullptr; itNode = itNode ->enext){
+            for(Snap_ENode * itNode = eHead->enext; itNode!= nullptr; itNode = itNode ->enext){
                 //cout << "In loop 2" << endl;
                 int dist = pred_v_dist + 1;
                 Snap_VNode* dest_v = itNode->dest_v;

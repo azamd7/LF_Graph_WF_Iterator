@@ -1103,14 +1103,13 @@ class SnapCollector{
             
             Snap_Vnode * pred_v = Q.front();
             //cout << "In loop " << pred_v << endl;
-            int pred_v_dist = pred_v->dist_from_source[tid];
+            int dist = pred_v->dist_from_source[tid] + 1;
             Q.pop();
             eHead = pred_v->ehead;
             //(*logfile) << "pred_v " << pred_v << " pred_v->v_path_cnt " << pred_v->v_path_cnt[0] << endl;
             //(*logfile) << "pred_v " << pred_v << " pred_v->path_cnt " << pred_v->path_cnt[0] << endl;
             for(Snap_Enode * itNode = eHead->enext.load(); !is_marked_ref((long)itNode); itNode = itNode ->enext.load()){
                 //cout << "In loop 2" << endl;
-                int dist = pred_v_dist + 1;
                 Snap_Vnode* dest_v = itNode->d_vnode;
                 if(dest_v->visitedArray[tid] != source_id)//destination vertex is not visited
                 {
