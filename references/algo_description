@@ -1,65 +1,104 @@
-We iterate through graph by collecting vertices first and edges of the collected vertices later. This collected data structure is stored within the SnapCollector Object.
+
+We iterate through the graph by collecting the vertices and their corresponding edges. Concurrently if some thread is perfoming any updation it will report it. Now although we have copy of the graph with its vertices and their edges. This cannot be considered as snapshot as we cannot gaurantee the existence of these edges and vertices at the same time which is the definition of a snapshot. Hence to create such a copy of the graph we use the collected vertices, edges and the reports of other threads to reconstruct it into a snapshot.
+
+Graph Analytics Operations : 
+    These operations are part of the SnapCollector Object which as mentioned before is inspired by Timnak and Shavit’s iterative wait-free snapshot approach. First let us see some of the data structures which will be involved in the operations and their use case.
+
+    - VReport : This is the structure of the vertex report. A list of such vertex reports will be maintained for each thread. Each Vertex Report Object stores the action i.e. delete or insert, and the vertex vnode on which it was performed. It also stores the pointer to the following vertex report, which is null if it is the last report added to the list.
+
+    -EReport : The Edge Report structure has similar fields and requirements as the Vertex Report. It has one additional field called source, which stores the source Vnode that this edge belongs to. This will be used when we need to verify if both source and destination vertices of the edge are part of the collected Vertices of the Snapshot. The destination vertex need not be stored as part of the ENode pointer. 
+
+    -Snap_Vnode : This is the structure of Vertex of the created snapshot. It encapsulates the vnode of the graph and stores the next Vertex in vnext. head_ENode points to the head of the edge List. edge_status and iter_edge_status are used to indicate the status of the collection and updation of the edge list belonging to each Snap_Enode during reconstruction and iteration, respectively. A detailed explanation is given in the respective methods. These fields will have three statuses: IDLE, ACTIVE, and DONE. IDLE is the default status when no thread is processing the edge list of Snap_Vnode, ACTIVE when some thread is working on the edge list, and DONE when some thread has completed processing the edge list. Here processing is used to indicate the iteration of edges, which happens during iterator operation, or updating the existing list of Snap_Enodes, which happens during reconstruction.
 
 
-Snap Collector Object : 
-    #- brief info regarding contents of snapcollector object and its content.
-      SnapCollector Object maintains a list of Snap_Vnode and their corresponding Snap_Enode Objects which are created using the collected VNodes and ENodes. It  holds the head of the Snap_Vnode list through with we can access the collected graph. It also contains the list of reports of vertices and edges corresponding to each thread. Here SC is used to indicate SnapCollector.
-    #    - nodes list
-    #    - corresponding edge list
-    #    - threads consisting of reports
+
+
+SnapCollector Object : 
+      SnapCollector Object maintains a list of Snap_Vnode and their corresponding Snap_Enode Objects, created using the collected VNodes and ENodes. It holds the head of the Snap_Vnode list through with we can access the collected graph. It also contains the list of reports of vertices and edges corresponding to each thread. Here SC is used to indicate SnapCollector Object.
+
     #Fields
     Important variables and operations within SnapCollector Object as follows.
 
     //(make the field name in italic)
 
-    - PSC : Global pointer that points to the current SC Object.
+    - PSC : A global pointer that points to the current SC Object.
 
-    - head_Vnode : Holds the pointer to the first vertex of the ordered vertex list of the collected graph.
+    - head_Vnode : This holds the pointer to the first vertex of the ordered vertex list of the collected graph.
 
-    - active : A boolean value that indicates if there are any threads which are currently taking snapshot using the current SC. This field is italic(true) when a SC object is created and italic(false) after any thread has completed the iteration of graph vertices and edges.
+    - active : A boolean value indicates if any threads are taking a snapshot using the current SC. This field is italic(true) when an SC object is created and italic(false) after any thread has completed the graph vertices and edges iteration.
     
-    - Vreports : The head of the linked list of Vertex reports corresponding to each thread is stored here. Whenever a thread performs any vertex updation it adds the respective report if the current SC object is Active.
+    - V_reports : The head of the linked list of Vertex reports corresponding to each thread is stored here. Whenever a thread performs vertex updation, it adds the report if the current SC object is Active.
     
-    - Ereports : This is simillar to italic(Vreports) except the threads adds reports when there is an edge updation.
+    - E_reports : This is similar to italic(Vreports), except the threads add reports when there is an edge updation.
 
-    - reconstruct_done : A boolean value to indicate some thread has already completed the reconstruction of the graph from the reports.
+    - reconstruct_done : A boolean value indicates that some thread has already completed the graph reconstruction from the reports.
 
 
 
     #Functions
 
-    - isActive / Deactivate : italic(IsActive) method simply reads the boolean field italic(active) and italic(deactive) writes italic(false) to italic(active).
+    - isActive / Deactivate : italic(IsActive) method reads the boolean field italic(active) and italic(deactive) writes italic(false) to italic(active).
 
-    - collectVnode(Vnode *) : SC Object maintains a list of collected vertices (italic(Snap_Vnode)) which can be access through the italic(head_vnode). This methods creates a  Snap_Vnode Object and adds to the end of the collected vertices.
 
-    - collectEnode(Snap_Vnode * , Enode *) : Every collected vertices (Snap_Vnode) is also associated to list of collected Edges(Snap_Enode). This method creates a Snap_Enode Object and adds it to end of collected edges (Snap_Enode) of the given Snap_Vnode Object.
+
+    - collectVnode(Vnode *) : SC Object maintains a list of collected vertices (italic(Snap_Vnode)) which can be accessed through the italic(head_vnode) and tail pointer that points to the last Snap_Vnode that was added. The implementation is similar to the lock-free queue of Michael and Scott[x]. 
+
+    It first creates a new Snap_Vnode Object SV and checks whether the tail points to the end of the list. If not, it updates the tail pointer to its next. Now it checks if the key of the new tail is greater than or equal to the input Vnode key. If yes, then it returns the Vnode pointed by the tail. If not, it inserts the SV at the end and then updates the tail pointer accordingly. CAS is used to help perform these updates. The first CAS could fail. This could be because of two cases either some thread has added a new SV, in which case we return the vnode pointed by it, or the tail pointer is marked to indicate no further vnodes should be added. If the first CAS succeeds, irrespective of the outcome of 2nd CAS, we return the input Vnode.
+
+    This implementation enforces ascending order amongst the keys of the collected vertices. Furthermore, it avoids duplication such that no two collected vertices will have duplicate keys. Moreover, since we are assuming a limited number of keys for the graph, the number of times the CAS fails during insertion is also limited. Therefore making the complete process wait-free.
+
+
+
+    - collectEnode(Snap_Vnode * , Enode *) : Every collected vertex (Snap_Vnode) is also associated with a list of collected Edges(Snap_Enode). The implementation is similar to collectVnode, except we work on the collected Edge list associated with Snap_Vnode Object SV. The head and tail pointer for the edge list is stored in the SV.
+
 
     - read_collected_vnodes() : Returns the list of Snap_Vnodes which were collected during iterator operation.
 
+
     - read_collected_enodes(Snap_Vnode) : Returns the list of Snap_Enodes which are collected for the given Snap_Vnode.
 
-    - read_vreports() : Returns the Vreports field if not empty else it collects all the Vertex Reports from each threads and stores the sorted reports in the Vreports and returns it.
 
-    - ReportVertex ( VNode , action, tid) : If the current SC Object is Active it creates a Vertex Report Object (line 189) and updates the head of Vertex Report using CAS for the given thread tid. 
-  
-    - ReportEdge ( ENode , action , tid) : This method is simillar to ReportVertex except it creates a Edge Report Object (line 195) and updates the head of Edge Report.
+    - read_vreports() : Returns the Vreports field if it is not null else, collects all the Vertex Reports from each thread, stores the sorted reports in Vreports, and returns it. These reports are sorted by increasing the order of the key of vnode field of the report.
 
-    - AcquireSnapCollector() : Reads the current SC Object from italic(PSC) and returns it if Active. Else create a SC Object and update the PSC using CAS (line 232) to point to the new SC object. It returns the updated value stored in PSC considering some other thread had updated concurrently
+    - read_ereports() : Implementation is similar to read_vreports but returns edge reports.
 
-    - iterator() : 
 
-    - BlockFurtherReports() : 
+    - ReportVertex ( VNode , action, tid) : If the current SC Object is Active, it creates a new Vertex Report Object (line 189) and uses CAS  to update the head of the Linked List of Vertex Report for the given thread tid(line 190). The sorting of edge reports is done first by their source vertex's key, then the key of the edge enode.
 
-    - CollectSnapshot() : 
 
-    - ReconstructionUsingReports() : 
+    - ReportEdge ( ENode , action , tid) : This method is similar to ReportVertex, except it creates an Edge Report Object (line 195) and updates the head of Edge Report for the thread tid(line 196).
 
-    - TakeSnapshot() :  
-    
-    #- brief info of fields and functions
-    #  -functions 
-    #    - Objective
-    #    - where is it used?
-    #    - mention important lines in the function 
-    #    - function calls that are not mentioned
-      
+
+    - AcquireSnapCollector() : Reads the current SC Object from italic(PSC) and returns it if Active. Else create an SC Object and update the PSC using CAS (line 232) to point to the new SC object. It returns the updated value stored in PSC, considering some other threads had updated concurrently.
+
+
+    - iterator() : This method commences the Snapshot Collection process by iterating through the graph and collecting all the unmarked vertices first and their corresponding unmarked Edges.
+         The vertex iteration starts with the graph's head vertex, which would be the one with the smallest key. We check if the Vertex is marked. If not, we call the collectVnode operation(line 242), which adds the Vertex to the end of the collected vertex list. The collectVnode method returns the last Vnode that was added. This Vnode will be either curr_V or a Vnode with a key greater than curr_V. Now we move to the next Vnode of the graph using the vnext pointer(line 243) and repeat the same process until curr_V is null or the active flag is set to false(line 240). The active flag is false to indicate that some thread has completed the iterator process.
+        
+        Now we have a list of vertices. Each of these collected vertices is associated with a list of edges in the graph, which must also be collected. Multiple threads could work simultaneously on the same SC Object to collect the snapshot. The separate list of edges for each vertex can be processed independently. Thus, to optimize, we divide the vertices amongst threads so that each thread will process a different edge list. To allocate vertices to each thread, we use the iter_edge_status field. We require two iterations to complete the collection of edges of the graph. Each thread will work independently on each edge list in the first iteration. In 2nd iteration, the faster threads will help the slower threads to complete iterating the edge list that is not completed. 
+        To explain in detail, In the first iteration, we iterate through the collected Vertices, and the thread that successfully updates the iter_edge_status of curr_V from IDLE to ACTIVE (line 248) using CAS starts iterating its curr_V's edge list. Here curr_V is the Snap_Vnode Object currently being accessed. If CAS fails, it moves onto the next collected Vertex (line 257). while iterating through the edge list, if Enode curr_E is not marked(line 251), we add it to the collected edge list using the collectEnode method(line 252). Once it reaches the end of the edge list, it calls the BlockFurtherEnodes, which, as the name indicates, blocks further addition of Enodes but only for curr_V. It then updates the iter_edge_status of curr_V from ACTIVE to DONE using CAS(line 256).
+        In the second iteration, threads iterate through the collected Vertices similar to the first iteration but only check if any of their iter_edge_status is still ACTIVE. In this case, it starts processing its edge list like the first iteration and, upon completion, calls BlockfurtherEnodes and updates the iter_edge_status of curr_V from ACTIVE to DONE. 
+        The 2nd iteration makes the process wait-free, as even if some thread fails, other active threads can complete the operation successfully, provided at least one thread is active.
+
+
+    - BlockFurtherReports() : Once the SC Object is deactivated, i.e., the active field is set to false. We need to block further addition of reports by other concurrent threads performing any updation on the graph structure. Without blocking the nodes, two concurrent snapshot-collecting threads may collect different reports before reconstruction. This scenario would lead to inconsistency while updating the collected vertices or edges during reconstruction. Hence, we need to block each report list to avoid having inconsistent snapshots amongst threads. We do that by iterating through the thread ids and marking the head of edge and vertex reports for each thread using CAS. 
+
+
+
+    - ReconstructionUsingReports() :  This method completes the snapshot by reconstructing the graph using the reports of action performed by other threads during the period the vertices and their edges was collected. 
+    In reconstruction, we add or delete vertices/edges in the collected vertices/edges depending upon the report of the action performed by other threads.
+        First, we fetch all the collected vertices V[](line 198) and then all the vertex reports (line 199). A VNode N will be part of the final list of collected vertices if either there is a Snap_Vnode amongst V that references N or there is an insert report for N, but there must not be any delete report that has references N(line 201). So if there are any DELETE reports for N, then irrespective of any number of INSERT reports, we have to remove it if it is part of the collected vertices. Any new Vnode created with the same key will have a different address than N. 
+        We have the final list of collected vertices, and now we have to perform similar insertion/deletion for the edges of these vertices. As we can see, similar to iterator implementation, the edge list of these vertices can also be processed independently.
+            We fetch all the edge reports(line 203) and start with the head of collected vertices curr_V. In 1st iteration, every thread will try to update the edge status of curr_V from IDLE to ACTIVE. The first thread that successfully updates will work in the edge list of curr_V. Other threads will move to the next Vertex (line 211). The condition to insert or delete an Edge in lines 208 and 209 is similar to the one for the Vertex mentioned above, except for every Edge which will be inserted or already present. We check if their destination Vnode has a reference in collected vertices. If not, they are removed Edge if already collected. Once a thread completes the processing of the edge list of a given vertex, it updates its edge_status field to DONE using CAS(line 210)
+            Once a thread completes the first iteration, it is possible that some threads processing an edge list would have become slow or inactive. If that happens, the reconstruction of the snapshot will be incomplete. So to help such threads complete the faster threads in 2nd iteration, search by iterating through collected vertices and checking if any of them have the edge_status field still ACTIVE. If yes, it processes the edges similar to the first iteration and, once it completes, updates the edge_status of the corresponding Vertex to DONE using CAS(line 219).
+            After a thread completes the 2nd iteration, it informs other threads by enabling the reconstruction_done flag. This allows other threads to skip the iterations.
+
+
+
+
+     The final snapshot is the same instance of the graph at which the SC Object's Active field is set to False. 
+
+    - TakeSnapshot() : This method returns the collected snapshot. It invokes all the operations involved in the snapshot collection process.
+
+
+ 

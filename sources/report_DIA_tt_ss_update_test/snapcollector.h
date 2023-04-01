@@ -20,6 +20,7 @@ thread_local int cnt = 1; // thread local variable , used in the visited list
 bool flag = false;
 
 class Snap_Vnode;
+class Snap_Vnode_copy;
 
 class Snap_Enode {
     public:
@@ -59,6 +60,29 @@ class Snap_Enode {
 };
 // the common sentinel snap Enode
 Snap_Enode * end_snap_Enode = new Snap_Enode(NULL, NULL);
+
+class Snap_Enode_copy {
+    public:
+        Snap_Enode_copy * enext;
+        int key;
+        Enode * enode;
+        Snap_Vnode_copy * d_vnode; //dest_vnode
+        
+
+        Snap_Enode_copy(Enode * enode, Snap_Enode_copy * enext) {
+            
+            this -> enext = enext; 
+            this -> enode = enode;
+            this -> d_vnode = nullptr;
+            d_vnode = nullptr;
+            if(enode != nullptr)
+                this->key = enode->val;
+            
+        }
+        
+        
+};
+
 typedef struct edge_report_info{//this will be created for each thread
     atomic<long> report_index = {-1};
 }ereport_info;
@@ -69,14 +93,14 @@ class Snap_Vnode {
         atomic<Snap_Vnode *> vnext;
         Vnode * vnode;
         Snap_Enode * ehead; // head of edge linked list
-        int * visitedArray;// size same as threads // used to indicate whether the node has beeen visited by the given thread
+        int visitedArray;// size same as threads // used to indicate whether the node has beeen visited by the given thread
         //this will have value as the source node which was being processed when it was visited last
         atomic<int> edge_status ; //0->edges havent been processed by any thread 
                                     // 1-> being processed 2->completed processing
         atomic<int> iter_edge_status;
         atomic<long> report_index;
 
-        int * dist_from_source;
+        int dist_from_source;
       
     //is_reconstruct is true then end enode is marked
     Snap_Vnode(Vnode * vnode, Snap_Vnode * next_snap_vnode, bool is_reconstruct = false) {
@@ -90,9 +114,9 @@ class Snap_Vnode {
         else
             start_snap_Enode = new Snap_Enode(this->vnode-> ehead, (Snap_Enode *)set_mark((long)end_snap_Enode));           
         this -> ehead = start_snap_Enode;
-        this ->visitedArray = new int[total_threads]{0};
+        this ->visitedArray = 0;
 
-        dist_from_source = new int[total_threads]{0};
+        dist_from_source = 0;
     
 
         iter_edge_status = {0};
@@ -100,6 +124,23 @@ class Snap_Vnode {
         report_index = {-1};
     }
 
+    Snap_Vnode(Vnode * vnode) {
+        
+        this -> vnode = vnode;
+        this -> vnext = nullptr;
+                  
+        Snap_Enode * start_snap_Enode = new Snap_Enode(this->vnode-> ehead, nullptr);
+                
+        this -> ehead = start_snap_Enode;
+        this ->visitedArray = 0;
+
+        dist_from_source = 0;
+    
+
+        iter_edge_status = {0};
+        edge_status = {0};
+        report_index = {-1};
+    }
 
     Snap_Vnode(Vnode * vnode, Snap_Vnode * next_snap_vnode , Snap_Enode *end) {
         
@@ -107,8 +148,8 @@ class Snap_Vnode {
         this -> vnext = next_snap_vnode;
         Snap_Enode * start_snap_Enode = new Snap_Enode(this->vnode-> ehead, end_snap_Enode);
         this -> ehead = start_snap_Enode;
-        this ->visitedArray = new int[total_threads]{0};
-        dist_from_source = new int[total_threads]{0};
+        this ->visitedArray = 0;
+        dist_from_source = 0;
       
 
         edge_status = {0};
@@ -119,18 +160,73 @@ class Snap_Vnode {
         Snap_Enode * tmp = ehead;
         Snap_Enode * tmp_next = ehead->enext;
         delete tmp;
-        while((Snap_Enode *)get_unmarked_ref((long)tmp_next) != end_snap_Enode){
+        while(tmp_next != nullptr and (Snap_Enode *)get_unmarked_ref((long)tmp_next) != end_snap_Enode){
             tmp = tmp_next;
             tmp_next = tmp_next->enext;
             delete tmp;
         }
-        delete[] visitedArray;
-        delete[] dist_from_source;
+        //delete[] visitedArray;
+        //delete[] dist_from_source;
     }
 };
 
 // the common sentinel snap Vnode
 Snap_Vnode *  end_snap_Vnode = new Snap_Vnode(end_Vnode, NULL);
+
+class Snap_Vnode_copy {
+    public:
+        Snap_Vnode_copy * vnext;
+        Vnode * vnode;
+        Snap_Enode_copy * ehead; // head of edge linked list
+        int visitedArray;// size same as threads // used to indicate whether the node has beeen visited by the given thread
+        //this will have value as the source node which was being processed when it was visited last
+        
+        int dist_from_source;
+      
+    //is_reconstruct is true then end enode is marked
+    Snap_Vnode_copy(Vnode * vnode, Snap_Vnode_copy * next_snap_vnode) {
+        
+        this -> vnode = vnode;
+        this -> vnext = next_snap_vnode;
+        Snap_Enode_copy * start_snap_Enode;
+        start_snap_Enode = new Snap_Enode_copy(this->vnode-> ehead, nullptr);
+            
+        this -> ehead = start_snap_Enode;
+        this ->visitedArray = 0;
+
+        dist_from_source = 0;
+    
+    }
+
+    Snap_Vnode_copy(Vnode * vnode) {
+        
+        this -> vnode = vnode;
+        this -> vnext = nullptr;
+                  
+        Snap_Enode_copy * start_snap_Enode = new Snap_Enode_copy(this->vnode-> ehead, nullptr);
+                
+        this -> ehead = start_snap_Enode;
+        this ->visitedArray = 0;
+
+        dist_from_source = 0;
+  
+    }
+
+  
+    ~Snap_Vnode_copy(){
+        Snap_Enode_copy * tmp = ehead;
+        Snap_Enode_copy * tmp_next = ehead->enext;
+        delete tmp;
+        while(tmp_next != nullptr ){
+            tmp = tmp_next;
+            tmp_next = tmp_next->enext;
+            delete tmp;
+        }
+        //delete[] visitedArray;
+        //delete[] dist_from_source;
+    }
+};
+
 
 
 
@@ -235,6 +331,7 @@ class Report{
             while(tmp_rep!= nullptr){
                 next_tmp_rep = tmp_rep->nextReport;
                 delete tmp_rep;
+                tmp_rep =  next_tmp_rep;
             }
             
             VertexReport * tmp_rep1 = head_vertex_report.load();
@@ -242,12 +339,103 @@ class Report{
             while(tmp_rep1!= nullptr){
                 next_tmp_rep1 = tmp_rep1->nextReport;
                 delete tmp_rep1;
+                tmp_rep1 =  next_tmp_rep1;
             }
             
         }
 };
 
+class SnapCollector_copy{
+    public:
+     Snap_Vnode_copy *head_snap_Vnode;
 
+    //used to create a copy
+        SnapCollector_copy(Vnode * head ){
+            Snap_Vnode_copy * start_snap_Vnode = new Snap_Vnode_copy(head );
+            head_snap_Vnode = start_snap_Vnode;
+        }
+
+
+                      /**
+     * @brief This method returns the shortest path from source s to other vertices
+     * 
+     */
+   
+    int max_dist_for_source(Snap_Vnode_copy *s ){
+        int max_dist = 0;
+        int source_id = s->vnode->val;
+        s->dist_from_source= 0;
+        s->visitedArray= source_id;
+        queue <Snap_Vnode_copy *> Q;
+        Q.push(s);
+
+        Snap_Enode_copy * eHead;
+        while(!Q.empty()){
+            
+            Snap_Vnode_copy * pred_v = Q.front();
+            //cout << "In loop " << pred_v << endl;
+            int pred_v_dist = pred_v->dist_from_source;
+            Q.pop();
+            eHead = pred_v->ehead;
+            //(*logfile) << "pred_v " << pred_v << " pred_v->v_path_cnt " << pred_v->v_path_cnt[0] << endl;
+            //(*logfile) << "pred_v " << pred_v << " pred_v->path_cnt " << pred_v->path_cnt[0] << endl;
+            for(Snap_Enode_copy * itNode = eHead->enext; itNode != nullptr; itNode = itNode ->enext){
+                //cout << "In loop 2" << endl;
+                int dist = pred_v_dist + 1;
+                Snap_Vnode_copy* dest_v = itNode->d_vnode;
+                if(dest_v->visitedArray != source_id)//destination vertex is not visited
+                {
+
+                    dest_v->visitedArray = source_id;
+                    dest_v->dist_from_source = dist;
+                    if(dist > max_dist)
+                        max_dist = dist;                    
+                    Q.push(dest_v);
+                }
+            }
+        }
+
+        return max_dist;
+    }
+
+
+    float get_diameter(int tid , fstream * logfile,bool debug){
+
+        int max_dist = 0;
+        Snap_Vnode_copy * vsnode = this->head_snap_Vnode;
+        
+        vsnode = vsnode->vnext;
+
+        while(vsnode != nullptr){
+            
+            int dist= this->max_dist_for_source(vsnode );
+            if(dist > max_dist)
+                max_dist = dist; 
+            vsnode = vsnode->vnext;
+        }
+
+    
+        return max_dist;
+    }
+
+        ~SnapCollector_copy(){
+            Snap_Vnode_copy * tmp = head_snap_Vnode;
+            Snap_Vnode_copy * tmp_next = head_snap_Vnode->vnext;
+
+            delete tmp;
+            while(tmp_next != nullptr ){
+                tmp = tmp_next;
+                tmp_next = tmp_next ->vnext;
+                delete tmp;
+            }
+ 
+            
+            
+        }
+
+        
+
+};
 
 class SnapCollector{
     private:
@@ -302,13 +490,21 @@ class SnapCollector{
             vertex_reconstruct_counter = {0};
 
         }
+        
+
+        //used to create a copy
+        SnapCollector(Vnode * head ){
+            this->no_of_threads = 1;
+            Snap_Vnode * start_snap_Vnode = new Snap_Vnode(head );
+            head_snap_Vnode = start_snap_Vnode;
+        }
 
         ~SnapCollector(){
             Snap_Vnode * tmp = head_snap_Vnode;
             Snap_Vnode * tmp_next = head_snap_Vnode->vnext;
 
             delete tmp;
-            while(tmp_next != end_snap_Vnode){
+            while(tmp_next != nullptr and (Snap_Vnode *)get_unmarked_ref((long)tmp_next) != end_snap_Vnode){
                 tmp = tmp_next;
                 tmp_next = tmp_next ->vnext;
                 delete tmp;
@@ -321,9 +517,7 @@ class SnapCollector{
             if(b != nullptr)
                 delete b;
             
-            for( int i ; i < no_of_threads ;i++){
-                    delete reports[i];
-            }
+            
         }
 
         //Note : 
@@ -1140,11 +1334,12 @@ class SnapCollector{
      * @brief This method returns the shortest path from source s to other vertices
      * 
      */
+   
     int max_dist_for_source(Snap_Vnode *s ,int tid ,bool debug,fstream * logfile){
         int max_dist = 0;
         int source_id = s->vnode->val;
-        s->dist_from_source[tid] = 0;
-        s->visitedArray[tid] = source_id;
+        s->dist_from_source= 0;
+        s->visitedArray= source_id;
         queue <Snap_Vnode *> Q;
         Q.push(s);
 
@@ -1153,20 +1348,20 @@ class SnapCollector{
             
             Snap_Vnode * pred_v = Q.front();
             //cout << "In loop " << pred_v << endl;
-            int pred_v_dist = pred_v->dist_from_source[tid];
+            int pred_v_dist = pred_v->dist_from_source;
             Q.pop();
             eHead = pred_v->ehead;
             //(*logfile) << "pred_v " << pred_v << " pred_v->v_path_cnt " << pred_v->v_path_cnt[0] << endl;
             //(*logfile) << "pred_v " << pred_v << " pred_v->path_cnt " << pred_v->path_cnt[0] << endl;
-            for(Snap_Enode * itNode = eHead->enext.load(); !is_marked_ref((long)itNode); itNode = itNode ->enext.load()){
+            for(Snap_Enode * itNode = eHead->enext.load(); itNode != nullptr; itNode = itNode ->enext.load()){
                 //cout << "In loop 2" << endl;
                 int dist = pred_v_dist + 1;
                 Snap_Vnode* dest_v = itNode->d_vnode;
-                if(dest_v->visitedArray[tid] != source_id)//destination vertex is not visited
+                if(dest_v->visitedArray != source_id)//destination vertex is not visited
                 {
 
-                    dest_v->visitedArray[tid] = source_id;
-                    dest_v->dist_from_source[tid] = dist;
+                    dest_v->visitedArray = source_id;
+                    dest_v->dist_from_source = dist;
                     if(dist > max_dist)
                         max_dist = dist;                    
                     Q.push(dest_v);
@@ -1182,12 +1377,10 @@ class SnapCollector{
 
         int max_dist = 0;
         Snap_Vnode * vsnode = this->head_snap_Vnode;
-        if(is_marked_ref((long)vsnode->vnext.load())){
-            return 0;
-        }
+        
         vsnode = vsnode->vnext;
 
-        while(!is_marked_ref((long)vsnode->vnext.load())){
+        while(vsnode != nullptr){
             
             int dist= this->max_dist_for_source(vsnode , tid, debug, logfile);
             if(dist > max_dist)
@@ -1199,62 +1392,88 @@ class SnapCollector{
         return max_dist;
     }
 
-        void print_snap_graph(fstream *logfile){
-            (*logfile) << "Snapped Graph ---------- of snapshot : " << this  << endl;
-            Snap_Vnode * snap_vnode = head_snap_Vnode->vnext;
-            while(get_unmarked_ref((long)snap_vnode) != (long)end_snap_Vnode){
-                string val = to_string(snap_vnode->vnode->val);
+    void print_snap_graph(fstream *logfile){
+        (*logfile) << "Snapped Graph ---------- of snapshot : " << this  << endl;
+        Snap_Vnode * snap_vnode = head_snap_Vnode->vnext;
+        while(get_unmarked_ref((long)snap_vnode) != (long)end_snap_Vnode){
+            string val = to_string(snap_vnode->vnode->val);
+            
+            (*logfile) << val << "(" << snap_vnode->vnode << ") " <<endl ;
+            //(*logfile) << val << "(" << snap_vnode << "-) " <<endl ;
+
+            Snap_Enode *snap_enode = snap_vnode->ehead->enext;
+            
+            while(get_unmarked_ref((long)snap_enode) != (long)end_snap_Enode){
                 
-                (*logfile) << val << "(" << snap_vnode->vnode << ") " <<endl ;
-                //(*logfile) << val << "(" << snap_vnode << "-) " <<endl ;
-
-                Snap_Enode *snap_enode = snap_vnode->ehead->enext;
+                string e_val = to_string(snap_enode->enode->val);
                 
-                while(get_unmarked_ref((long)snap_enode) != (long)end_snap_Enode){
-                    
-                    string e_val = to_string(snap_enode->enode->val);
-                    
-                    e_val = " -> " + e_val ;
-                    
-                    //*logfile << "d_vnode ptr " << snap_enode->d_vnode.load()  << endl;
-                    //*logfile << "d_vnode is null " << (snap_enode->d_vnode== nullptr) << endl;
-                    //*logfile << "snap_enode->enode ptr " << snap_enode->enode  << endl;
-                    //if(snap_enode->enode->val != snap_enode->d_vnode.load()->vnode->val)
-                    //    (*logfile) << e_val <<"(" << snap_enode->enode->v_dest << ") asdsadas" <<endl ;
-                    //else
-                    //    (*logfile) << e_val <<"(" << snap_enode->enode->v_dest << ") " <<endl ;
+                e_val = " -> " + e_val ;
+                
+                //*logfile << "d_vnode ptr " << snap_enode->d_vnode.load()  << endl;
+                //*logfile << "d_vnode is null " << (snap_enode->d_vnode== nullptr) << endl;
+                //*logfile << "snap_enode->enode ptr " << snap_enode->enode  << endl;
+                //if(snap_enode->enode->val != snap_enode->d_vnode.load()->vnode->val)
+                //    (*logfile) << e_val <<"(" << snap_enode->enode->v_dest << ") asdsadas" <<endl ;
+                //else
+                //    (*logfile) << e_val <<"(" << snap_enode->enode->v_dest << ") " <<endl ;
 
-                    if(snap_enode->d_vnode== nullptr){
-                        (*logfile) << e_val <<"(" << snap_enode->enode->v_dest << ") HoBO" <<endl ;
-                    }
-                    else{
-                        (*logfile) << e_val <<"(" << snap_enode->enode->v_dest << ") " <<endl ;
-                    }
-
-                    //if((long)snap_enode->d_vnode.load() > 100L){
-                    //    (*logfile) << e_val <<"(" << snap_enode->d_vnode << ") " <<  flush ;
-                    //    //(*logfile) << flush << endl;
-                    //    *logfile <<"vis : --" << snap_enode->d_vnode.load()->visitedArray <<endl ;
-                    //}
-                    //else{
-                    //    (*logfile) << e_val <<"(" << snap_enode->d_vnode << ") "  <<endl ;
-                    //}
-                    snap_enode = snap_enode -> enext;
-                    
+                if(snap_enode->d_vnode== nullptr){
+                    (*logfile) << e_val <<"(" << snap_enode->enode->v_dest << ") HoBO" <<endl ;
                 }
-                if(is_marked_ref((long)snap_enode))
-                    (*logfile) <<" Tail-e " <<snap_enode << "FFFFFFFFFFFFFFF" << endl;
-                else
-                    (*logfile) <<" Tail-e " <<snap_enode << "SSSSSSSSSSSSSSS" << endl;
-                (*logfile) << endl;
-                (*logfile) << "|" <<endl;
-                snap_vnode = snap_vnode->vnext;
-                
+                else{
+                    (*logfile) << e_val <<"(" << snap_enode->enode->v_dest << ") " <<endl ;
+                }
 
+                //if((long)snap_enode->d_vnode.load() > 100L){
+                //    (*logfile) << e_val <<"(" << snap_enode->d_vnode << ") " <<  flush ;
+                //    //(*logfile) << flush << endl;
+                //    *logfile <<"vis : --" << snap_enode->d_vnode.load()->visitedArray <<endl ;
+                //}
+                //else{
+                //    (*logfile) << e_val <<"(" << snap_enode->d_vnode << ") "  <<endl ;
+                //}
+                snap_enode = snap_enode -> enext;
+                
             }
-            (*logfile) << "Tail" << endl;
-            (*logfile) << "Graph(End)-------" << endl;
+            if(is_marked_ref((long)snap_enode))
+                (*logfile) <<" Tail-e " <<snap_enode << "FFFFFFFFFFFFFFF" << endl;
+            else
+                (*logfile) <<" Tail-e " <<snap_enode << "SSSSSSSSSSSSSSS" << endl;
+            (*logfile) << endl;
+            (*logfile) << "|" <<endl;
+            snap_vnode = snap_vnode->vnext;
+            
+
         }
+        (*logfile) << "Tail" << endl;
+        (*logfile) << "Graph(End)-------" << endl;
+    }
+
+
+    void print_snap_graph_new(fstream *logfile){
+
+        Snap_Vnode * snap_vnode = head_snap_Vnode->vnext;
+        while(get_unmarked_ref((long)snap_vnode) != (long)end_snap_Vnode){
+            string val = to_string(snap_vnode->vnode->val);
+            
+            //(*logfile) << val << "(" << snap_vnode << "-) " <<endl ;
+
+            Snap_Enode *snap_enode = snap_vnode->ehead->enext;
+            
+            while(get_unmarked_ref((long)snap_enode) != (long)end_snap_Enode){
+                
+                string e_val = to_string(snap_enode->enode->val);
+                (*logfile) << val << " " << e_val << endl;
+                 snap_enode = snap_enode -> enext;
+                
+            }
+            
+            snap_vnode = snap_vnode->vnext;
+            
+
+        }
+
+    }
 };
 /**
  * @brief  Checks whether there is active reference to snapcollector object if not creates a new snapcollector object

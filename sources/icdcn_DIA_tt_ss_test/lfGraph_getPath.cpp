@@ -637,21 +637,51 @@ Snap_VNode* snapshot(){
     }
 
 
-        float get_diameter(int tid , Snap_VNode * head_snap_Vnode ){
-            int max_dist = 0;
-            Snap_VNode * vsnode = head_snap_Vnode;
+    float get_diameter(int tid , Snap_VNode * head_snap_Vnode ){
+        int max_dist = 0;
+        Snap_VNode * vsnode = head_snap_Vnode;
 
+        vsnode = vsnode->vnext;
+
+        while(vsnode != nullptr){
+            int dist = this->max_dist_for_source(vsnode , tid );
+            if(dist > max_dist)
+                max_dist = dist;
             vsnode = vsnode->vnext;
-
-            while(vsnode != nullptr){
-                int dist = this->max_dist_for_source(vsnode , tid );
-                if(dist > max_dist)
-                    max_dist = dist;
-                vsnode = vsnode->vnext;
-                    
-            }
-            return max_dist;
+                
         }
+        return max_dist;
+    }
+
+    void print_snap_graph_new(Snap_VNode * head_snap_Vnode ){
+
+        fstream logfile_th;
+        //if(debug){ 
+        string logFileName = "../../log/icdcn_snap_graph.txt";
+        logfile_th.open(logFileName,ios::out);
+
+        Snap_VNode * snap_vnode = head_snap_Vnode->vnext;
+        while(snap_vnode != nullptr){
+            string val = to_string(snap_vnode->pointv->val);
+            
+            //(*logfile) << val << "(" << snap_vnode << "-) " <<endl ;
+
+            Snap_ENode *snap_enode = snap_vnode->enext->enext;
+            
+            while(snap_enode != nullptr){
+                
+                string e_val = to_string(snap_enode->pointe->val);
+                logfile_th << val << " " << e_val << endl;
+                 snap_enode = snap_enode -> enext;
+                
+            }
+            
+            snap_vnode = snap_vnode->vnext;
+            
+
+        }
+
+    }
 
 
 bool compare_snapshot(snap_vlist *snap1_head, snap_vlist *snap2_head){

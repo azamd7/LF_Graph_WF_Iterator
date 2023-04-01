@@ -182,6 +182,12 @@ void* pthread_call(void* t)
                     
                     }
 
+                    ////////
+                    //    G1.print_snap_graph_new(vhead2);
+                    //    cont_exec = false;
+                    //    break;
+                    ////////
+
                     chrono::high_resolution_clock::time_point tempT = chrono::high_resolution_clock::now();
 
                     G1.get_diameter( threadnum,vhead2);
