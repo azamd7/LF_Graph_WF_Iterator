@@ -12,7 +12,7 @@ now = datetime.now() # current date and time
 date_time_obj =now.strftime('%H_%M_%S') 
 
 
-threads = [13,26,52,78,102] 
+threads = [13,26,52,78,104] 
 #threads = [4,8]
 algos = [ "report_DIA_tt_ss_update_test" , "icdcn_DIA_tt_ss_test" , "opodis_DIA_tt_ss_test" ]
 #algos = ["report_DIA_tt_ss_update"]
