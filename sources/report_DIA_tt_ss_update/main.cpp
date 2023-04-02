@@ -62,6 +62,8 @@
 
 #include <unistd.h>
 
+#include <unordered_map>
+
 using namespace std;
 
 void print_graph(fstream *logfile , Vnode * graph_headv);
