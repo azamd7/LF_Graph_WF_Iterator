@@ -20,30 +20,6 @@ thread_local int cnt = 1; // thread local variable , used in the visited list
 bool flag = false;
 
 class Snap_Vnode;
-class Snap_Vnode_copy;
-class Snap_Enode_copy {
-    public:
-        Snap_Enode_copy * enext;
-        int key;
-        Enode * enode;
-        Snap_Vnode_copy * d_vnode; //dest_vnode
-        
-
-        Snap_Enode_copy(Enode * enode, Snap_Enode_copy * enext) {
-            
-            this -> enext = enext; 
-            this -> enode = enode;
-            this -> d_vnode = nullptr;
-            d_vnode = nullptr;
-            if(enode != nullptr)
-                this->key = enode->val;
-            
-        }
-        //~Snap_Enode_copy(){
-
-        //}
-        
-};
 
 class Snap_Enode {
     public:
@@ -155,60 +131,6 @@ class Snap_Vnode {
 
 // the common sentinel snap Vnode
 Snap_Vnode *  end_snap_Vnode = new Snap_Vnode(end_Vnode, NULL);
-class Snap_Vnode_copy {
-    public:
-        Snap_Vnode_copy * vnext;
-        Vnode * vnode;
-        Snap_Enode_copy * ehead; // head of edge linked list
-        int visitedArray;// size same as threads // used to indicate whether the node has beeen visited by the given thread
-        //this will have value as the source node which was being processed when it was visited last
-        int key;
-        int dist_from_source;
-      
-    //is_reconstruct is true then end enode is marked
-    Snap_Vnode_copy(Vnode * vnode, Snap_Vnode_copy * next_snap_vnode) {
-        this->key = vnode->val;
-        this -> vnode = vnode;
-        this -> vnext = next_snap_vnode;
-        Snap_Enode_copy * start_snap_Enode;
-        start_snap_Enode = new Snap_Enode_copy(this->vnode-> ehead, nullptr);
-            
-        this -> ehead = start_snap_Enode;
-        this ->visitedArray = 0;
-
-        dist_from_source = 0;
-    
-    }
-
-    Snap_Vnode_copy(Vnode * vnode) {
-        
-        this -> vnode = vnode;
-        this -> vnext = nullptr;
-        this->key = vnode->val;
-        Snap_Enode_copy * start_snap_Enode = new Snap_Enode_copy(this->vnode-> ehead, nullptr);
-                
-        this -> ehead = start_snap_Enode;
-        this ->visitedArray = 0;
-
-        dist_from_source = 0;
-  
-    }
-
-  
-    ~Snap_Vnode_copy(){
-        Snap_Enode_copy * tmp = ehead;
-        Snap_Enode_copy * tmp_next = ehead->enext;
-        delete tmp;
-        while(tmp_next != nullptr ){
-            tmp = tmp_next;
-            tmp_next = tmp_next->enext;
-            delete tmp;
-        }
-        //delete[] visitedArray;
-        //delete[] dist_from_source;
-    }
-};
-
 
 
 
@@ -325,97 +247,6 @@ class Report{
         }
 };
 
-class SnapCollector_copy{
-    public:
-     Snap_Vnode_copy *head_snap_Vnode;
-
-    //used to create a copy
-        SnapCollector_copy(Vnode * head ){
-            head_snap_Vnode = new Snap_Vnode_copy(head );
-        }
-
-
-                      /**
-     * @brief This method returns the shortest path from source s to other vertices
-     * 
-     */
-   
-    int max_dist_for_source(Snap_Vnode_copy *s ){
-        int max_dist = 0;
-        int source_id = s->key;
-        s->dist_from_source= 0;
-        s->visitedArray= source_id;
-        queue <Snap_Vnode_copy *> Q;
-        Q.push(s);
-
-        Snap_Enode_copy * eHead;
-        while(!Q.empty()){
-            
-            Snap_Vnode_copy * pred_v = Q.front();
-            //cout << "In loop " << pred_v << endl;
-            int pred_v_dist = pred_v->dist_from_source;
-            Q.pop();
-            eHead = pred_v->ehead;
-            //(*logfile) << "pred_v " << pred_v << " pred_v->v_path_cnt " << pred_v->v_path_cnt[0] << endl;
-            //(*logfile) << "pred_v " << pred_v << " pred_v->path_cnt " << pred_v->path_cnt[0] << endl;
-            for(Snap_Enode_copy * itNode = eHead->enext; itNode != nullptr; itNode = itNode ->enext){
-                
-                //cout << "In loop 2" << endl;
-                int dist = pred_v_dist + 1;
-                Snap_Vnode_copy* dest_v = itNode->d_vnode;
-                
-                if(dest_v->visitedArray != source_id)//destination vertex is not visited
-                {
-                    dest_v->visitedArray = source_id;
-                    dest_v->dist_from_source = dist;
-                    if(dist > max_dist)
-                        max_dist = dist;                    
-                    Q.push(dest_v);
-                }
-            }
-        }
-
-        return max_dist;
-    }
-
-
-    float get_diameter(int tid , fstream * logfile,bool debug){
-
-        int max_dist = 0;
-        Snap_Vnode_copy * vsnode = this->head_snap_Vnode;
-        
-        vsnode = vsnode->vnext;
-
-        while(vsnode != nullptr){
-            
-            int dist= this->max_dist_for_source(vsnode );
-            if(dist > max_dist)
-                max_dist = dist; 
-            vsnode = vsnode->vnext;
-        }
-
-    
-        return max_dist;
-    }
-
-        ~SnapCollector_copy(){
-            Snap_Vnode_copy * tmp = head_snap_Vnode;
-            Snap_Vnode_copy * tmp_next = head_snap_Vnode->vnext;
-
-            delete tmp;
-            while(tmp_next != nullptr ){
-                tmp = tmp_next;
-                tmp_next = tmp_next ->vnext;
-                delete tmp;
-            }
- 
-            
-            
-        }
-
-        
-
-};
 
 
 class SnapCollector{

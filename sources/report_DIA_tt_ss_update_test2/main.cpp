@@ -762,7 +762,7 @@ void *thread_funct(void * t_args){
                     SnapCollector_copy *newSC = new SnapCollector_copy(graph->head);
 
                     copy_snapcollector(newSC , sc);
-                    //delete sc;
+                    ////delete sc;
 
                     
 
@@ -793,7 +793,7 @@ void *thread_funct(void * t_args){
                         sc->print_snap_graph(&logfile_th);
                     }
 
-                    delete newSC;
+                    //delete newSC;
                
             }
             break;

@@ -79,7 +79,9 @@ class Snap_Enode_copy {
                 this->key = enode->val;
             
         }
-        
+        //~Snap_Enode_copy(){
+
+        //}
         
 };
 
@@ -351,8 +353,7 @@ class SnapCollector_copy{
 
     //used to create a copy
         SnapCollector_copy(Vnode * head ){
-            Snap_Vnode_copy * start_snap_Vnode = new Snap_Vnode_copy(head );
-            head_snap_Vnode = start_snap_Vnode;
+            head_snap_Vnode = new Snap_Vnode_copy(head );
         }
 
 

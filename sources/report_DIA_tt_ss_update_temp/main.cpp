@@ -554,7 +554,7 @@ atomic<bool> continue_exec;
  * 
  */
 struct thread_args{
-     GraphList *graph ;
+    GraphList *graph ;
     string  logfilename ;
     int thread_num;
     bool debug ;  
@@ -562,54 +562,12 @@ struct thread_args{
     int max_threads;
     double * ops;
     double * max_times;
-    double * avg_times;
+  double * avg_times;
     
     vector<double> * dist_prob;
     
 };
 
-
-void copy_snapcollector(SnapCollector_copy * newSC , SnapCollector * oldSC){
-    Snap_Vnode * snap_vnode = oldSC->head_snap_Vnode->vnext;
-
-    unordered_map<long, long> umap;
-    Snap_Vnode_copy *tmpPtr = nullptr;
-
-    Snap_Vnode_copy * curr_vnode = newSC->head_snap_Vnode;
-    while(get_unmarked_ref((long)snap_vnode) != (long)end_snap_Vnode){
-        Snap_Vnode_copy *new_vnode = new Snap_Vnode_copy(snap_vnode->vnode );
-        if(tmpPtr == nullptr)
-            tmpPtr = new_vnode;
-        curr_vnode->vnext = new_vnode;
-        curr_vnode = new_vnode; 
-
-        umap[(long)snap_vnode] = (long) new_vnode;
-
-        snap_vnode = snap_vnode->vnext;
-    }
-    
-
-    curr_vnode = newSC->head_snap_Vnode->vnext;
-    snap_vnode =  oldSC->head_snap_Vnode->vnext;
-    while(curr_vnode != nullptr){
-        Snap_Enode * snap_enode = snap_vnode->ehead->enext;
-        Snap_Enode_copy * curr_enode = curr_vnode->ehead;
-
-        while(get_unmarked_ref((long)snap_enode) != (long)end_snap_Enode){
-            
-            Snap_Enode_copy * newEnode = new Snap_Enode_copy(snap_enode->enode , nullptr);
-            newEnode->d_vnode = (Snap_Vnode_copy *) umap[(long)snap_enode->d_vnode.load()];
-            curr_enode->enext = newEnode;
-            curr_enode = newEnode;
-            snap_enode = snap_enode -> enext;
-        }
-
-        curr_vnode = curr_vnode->vnext;
-        snap_vnode = snap_vnode->vnext;
-    }
-
-        
-}
 
 
 
@@ -638,7 +596,7 @@ void *thread_funct(void * t_args){
     int max_nodes = ((struct thread_args *)t_args)->max_nodes;
     int max_threads = ((struct thread_args *)t_args)->max_threads;
     //int prob_arr[4] = ((struct thread_args *)t_args)->prob_arr;
-     double * ops = ((struct thread_args *)t_args)->ops;
+    double * ops = ((struct thread_args *)t_args)->ops;
     double * avg_times = ((struct thread_args *)t_args)->avg_times;
     double * max_times = ((struct thread_args *)t_args)->max_times;
         vector<double> tts;//list of time taken for snapshot
@@ -740,18 +698,16 @@ void *thread_funct(void * t_args){
                     chrono::high_resolution_clock::time_point startT = chrono::high_resolution_clock::now();
 
                     logfile_th << " thread id : " << thread_num << " Collecting snapshot"  << endl;
+                    //print_graph(&logfile_th , graph->head);
                     SnapCollector * sc =  takeSnapshot(graph->head , max_threads, &logfile_th,debug ,thread_num);
-          
-
-                    SnapCollector_copy *newSC = new SnapCollector_copy(graph->head);
-
-                    copy_snapcollector(newSC , sc);
-
+                    //int key = rand() % max_nodes;
+                    //sc->getBFS(&logfile_th , debug , thread_num, key );
+                   
                     
-
-                    
-                    float bc = newSC->get_diameter(thread_num, &logfile_th,debug);
-                    
+                    float bc = sc->get_diameter(thread_num, &logfile_th,debug);
+                    //cout << bc << endl;
+                    //int key = rand() % max_nodes;
+                    //cout << bc << endl;
                     chrono::high_resolution_clock::time_point endT = chrono::high_resolution_clock::now();
                     double timeTaken = chrono::duration_cast<chrono::microseconds>(endT-startT).count() ;
 
