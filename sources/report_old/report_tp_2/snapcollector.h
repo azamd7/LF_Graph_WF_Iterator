@@ -248,11 +248,8 @@ class SnapCollector{
         //vector <Report> delete_vertex_reports; //This will be used to check the while adding edges 
     
         int no_of_threads;
-        atomic<long> vertex_iter_counter ;
-        atomic<long> vertex_reconstruct_counter;
         //atomic<int> threads_accessing = {0} ; //no of threads accesssing the snapcollector
-
-       
+    
 
         //for reconstruction using report
     
@@ -283,10 +280,6 @@ class SnapCollector{
             
             reconstruction_completed = {false};
             iteration_completed = {false};
-            vertex_iter_counter = {0};
-            vertex_reconstruct_counter = {0};
-
-            
 
         }
 
@@ -397,26 +390,13 @@ class SnapCollector{
             }
           
             Snap_Vnode * snap_edge_vertex_ptr = head_snap_Vnode->vnext;// used to identify current vertex we are iterating
+            int tmp = 0 ;
             //iterate through the edge
             ///ist iteration
 
-            long counter = 0;
-            long loc_vertex_iter_counter;
-
-            while (!this->iteration_completed){
-
-                loc_vertex_iter_counter = this->vertex_iter_counter++;
-
-                while(!is_marked_ref((long)snap_edge_vertex_ptr) and counter < loc_vertex_iter_counter){
-                    snap_edge_vertex_ptr = snap_edge_vertex_ptr->vnext;
-                    counter++;
-                }
+            while (!is_marked_ref((long)snap_edge_vertex_ptr) and !this->iteration_completed){
                 
-                //reached end of vertex list
-                if(is_marked_ref((long)snap_edge_vertex_ptr))
-                    break;
-
-                int tmp = 0;    
+                tmp = 0;    
                 if(atomic_compare_exchange_strong(&snap_edge_vertex_ptr->iter_edge_status , &tmp , 1)){
                     Snap_Enode *curr_snap_Enode = snap_edge_vertex_ptr->ehead;//next of ehead will never me marked
                     Snap_Enode *next_snap_Enode = curr_snap_Enode->enext.load();
@@ -459,25 +439,14 @@ class SnapCollector{
 
 
                 }
+                snap_edge_vertex_ptr = snap_edge_vertex_ptr->vnext;
             }
 
             //2nd iteration
             snap_edge_vertex_ptr = head_snap_Vnode->vnext;
-            int tmp;
 
             while (!is_marked_ref((long)snap_edge_vertex_ptr) and !this->iteration_completed){
-                if(snap_edge_vertex_ptr->iter_edge_status != 2){
-                    tmp = 0;
-                    //if node is 
-                    if(!atomic_compare_exchange_strong(&snap_edge_vertex_ptr->iter_edge_status , &tmp , 1)){
-                        if(tmp == 2){
-                            //some other node has already completed
-                            snap_edge_vertex_ptr = snap_edge_vertex_ptr->vnext;
-                            continue;
-                        }
-                        
-                    }
-
+                if(snap_edge_vertex_ptr->iter_edge_status == 1){
                     Snap_Enode *curr_snap_Enode = snap_edge_vertex_ptr->ehead;//next of ehead will never me marked
                     Snap_Enode *next_snap_Enode = curr_snap_Enode->enext.load();
                     while(get_unmarked_ref((long)next_snap_Enode) != (long)end_snap_Enode){
@@ -515,6 +484,7 @@ class SnapCollector{
                             curr_snap_Enode = curr_snap_Enode->enext;
                         }
                     }
+
                     tmp = 1;
                     atomic_compare_exchange_strong(&snap_edge_vertex_ptr->iter_edge_status , &tmp , 2);
                 }
@@ -717,23 +687,10 @@ class SnapCollector{
              if(debug)
                 *logfile << "Ist Iteration "<< endl; 
             long ereport_size = edge_reports->size();
-            long counter = 0;
-            long loc_vertex_reconstruct_counter;
             //ist iteration
-            while( !this->reconstruction_completed){
+            while(!is_marked_ref((long)loc_snap_vertex_ptr) and !this->reconstruction_completed){
                 int tmp = 0;    
                 long prev_index = -1;
-                loc_vertex_reconstruct_counter = this->vertex_reconstruct_counter++;
-
-                while(!is_marked_ref((long)loc_snap_vertex_ptr) and counter < loc_vertex_reconstruct_counter){
-                    loc_snap_vertex_ptr = loc_snap_vertex_ptr->vnext;
-                    counter++;
-                }
-
-                //reached end of vertex list
-                if(is_marked_ref((long)loc_snap_vertex_ptr))
-                    break;
-
                 if(atomic_compare_exchange_strong(&loc_snap_vertex_ptr->edge_status , &tmp , 1)){
                     if(debug)
                         *logfile << "Processing node " << loc_snap_vertex_ptr->vnode->val << "(" <<loc_snap_vertex_ptr->vnode<< ")" << endl; 
@@ -904,7 +861,7 @@ class SnapCollector{
                     atomic_compare_exchange_strong(&loc_snap_vertex_ptr->edge_status , &tmp_edge_status , 2);
                 }
 
-                //loc_snap_vertex_ptr = loc_snap_vertex_ptr->vnext;
+                loc_snap_vertex_ptr = loc_snap_vertex_ptr->vnext;
             }
 
             if(debug){
@@ -921,17 +878,7 @@ class SnapCollector{
             {
                 long prev_index = -1;
                 //if snap vertex edge status = 1 ie. edges are still not processed completely
-                if(loc_snap_vertex_ptr->edge_status != 2){
-                    int tmp = 0;
-                    if(!atomic_compare_exchange_strong(&loc_snap_vertex_ptr->edge_status , &tmp , 1)){
-                        if(tmp == 2){
-                            //some other node has already completed
-                            loc_snap_vertex_ptr = loc_snap_vertex_ptr->vnext;
-                            continue;
-                        }
-                        
-                    }
-
+                if(loc_snap_vertex_ptr->edge_status == 1){
                     Snap_Enode * prev_snap_edge = loc_snap_vertex_ptr->ehead;
                     Snap_Enode * curr_snap_edge = loc_snap_vertex_ptr->ehead->enext;
                     Snap_Vnode * dest_vsnap_ptr = head_snap_Vnode->vnext;

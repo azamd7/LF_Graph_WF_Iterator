@@ -662,11 +662,20 @@ void *thread_funct(void * t_args){
         op_index = d(gen);
         switch(op_index) {
         case 0://add vertex
-            {
+            {   
+                
                 int rand_node_id = rand() % max_nodes + 1; 
                 if(debug) 
                     logfile_th << " thread id : " << thread_num << "Add vertex  : " << rand_node_id << endl;
+                chrono::high_resolution_clock::time_point startT = chrono::high_resolution_clock::now();
                 graph->AddVertex(rand_node_id,thread_num,&logfile_th,debug );
+                chrono::high_resolution_clock::time_point endT = chrono::high_resolution_clock::now();
+                double timeTaken = chrono::duration_cast<chrono::microseconds>(endT-startT).count() ;
+
+                tts.push_back(timeTaken);
+                if (max_times[thread_num] < timeTaken){
+                    max_times[thread_num] = timeTaken;
+                }
                 //if(continue_exec)
                 //    ops[thread_num]++;
             }
@@ -674,10 +683,19 @@ void *thread_funct(void * t_args){
         case 1:
             // delete vertex
             {
+                
                 int rand_node_id = rand() % max_nodes + 1;   
                 if(debug)
                     logfile_th << " thread id : " << thread_num << "Delete vertex : " << rand_node_id << endl;
+                chrono::high_resolution_clock::time_point startT = chrono::high_resolution_clock::now();
                 graph->RemoveVertex(rand_node_id,thread_num,&logfile_th, debug);
+                chrono::high_resolution_clock::time_point endT = chrono::high_resolution_clock::now();
+                double timeTaken = chrono::duration_cast<chrono::microseconds>(endT-startT).count() ;
+
+                tts.push_back(timeTaken);
+                if (max_times[thread_num] < timeTaken){
+                    max_times[thread_num] = timeTaken;
+                }
                 //if(continue_exec)
                 //    ops[thread_num]++;
             }
@@ -690,9 +708,18 @@ void *thread_funct(void * t_args){
                 while(rand_dest == rand_source){
                     rand_dest = rand() % max_nodes + 1;
                 }
+                
                 if(debug)   
                     logfile_th << " thread id : " << thread_num << "Add edge : " << rand_source << " " << rand_dest << endl;
+                chrono::high_resolution_clock::time_point startT = chrono::high_resolution_clock::now();
                 graph->AddEdge(rand_source , rand_dest , thread_num,&logfile_th,debug);
+                chrono::high_resolution_clock::time_point endT = chrono::high_resolution_clock::now();
+                double timeTaken = chrono::duration_cast<chrono::microseconds>(endT-startT).count() ;
+
+                tts.push_back(timeTaken);
+                if (max_times[thread_num] < timeTaken){
+                    max_times[thread_num] = timeTaken;
+                }
                 //if(continue_exec)
                 //    ops[thread_num]++;
             }
@@ -706,7 +733,15 @@ void *thread_funct(void * t_args){
                 }
                 if(debug)
                     logfile_th << " thread id : " << thread_num << " Delete edge : " << rand_source << " " << rand_dest  << endl;
+                chrono::high_resolution_clock::time_point startT = chrono::high_resolution_clock::now();
                 graph->RemoveE(rand_source , rand_dest , thread_num,&logfile_th,debug);
+                chrono::high_resolution_clock::time_point endT = chrono::high_resolution_clock::now();
+                double timeTaken = chrono::duration_cast<chrono::microseconds>(endT-startT).count() ;
+
+                tts.push_back(timeTaken);
+                if (max_times[thread_num] < timeTaken){
+                    max_times[thread_num] = timeTaken;
+                }
                 //if(continue_exec)
                 //    ops[thread_num]++;
             }
@@ -720,7 +755,15 @@ void *thread_funct(void * t_args){
                 }
                 if(debug)
                     logfile_th << " thread id : " << thread_num << " Contians Edge : " << rand_source << " " << rand_dest  << endl;
+                chrono::high_resolution_clock::time_point startT = chrono::high_resolution_clock::now();
                 graph->ContainsE(rand_source , rand_dest , thread_num,&logfile_th,debug);
+                chrono::high_resolution_clock::time_point endT = chrono::high_resolution_clock::now();
+                double timeTaken = chrono::duration_cast<chrono::microseconds>(endT-startT).count() ;
+
+                tts.push_back(timeTaken);
+                if (max_times[thread_num] < timeTaken){
+                    max_times[thread_num] = timeTaken;
+                }
                 //if(continue_exec)
                 //    ops[thread_num]++;
             }
@@ -731,7 +774,15 @@ void *thread_funct(void * t_args){
                 
                 if(debug)
                     logfile_th << " thread id : " << thread_num << " Contains vertex : " << node_id  << endl;
+                chrono::high_resolution_clock::time_point startT = chrono::high_resolution_clock::now();
                 graph->ContainsV(node_id , thread_num,&logfile_th,debug);
+                chrono::high_resolution_clock::time_point endT = chrono::high_resolution_clock::now();
+                double timeTaken = chrono::duration_cast<chrono::microseconds>(endT-startT).count() ;
+
+                tts.push_back(timeTaken);
+                if (max_times[thread_num] < timeTaken){
+                    max_times[thread_num] = timeTaken;
+                }
                 //if(continue_exec)
                 //    ops[thread_num]++;
             }
@@ -766,7 +817,9 @@ void *thread_funct(void * t_args){
                         
                         sc->print_snap_graph(&logfile_th);
                     }
+
                     delete newSC;
+                
                
             }
             break;

@@ -35,7 +35,6 @@ class Snap_Enode {
             this -> enext = enext; 
             this -> enode = enode;
             this -> d_vnode = nullptr;
-            visitedArray = new int[total_threads]{0};
             d_vnode.store(nullptr);
             if(enode != nullptr)
                 this->key = enode->val;
@@ -46,14 +45,12 @@ class Snap_Enode {
             this -> enext = enext; 
             this -> enode = enode;
             this -> d_vnode = d_vnode;
-            visitedArray = new int[total_threads]{0};
             if(enode != nullptr)
                 this->key = enode->val;
             
         }
 
         ~Snap_Enode(){
-            delete[] visitedArray;
             
         }
 };
@@ -69,14 +66,11 @@ class Snap_Vnode {
         atomic<Snap_Vnode *> vnext;
         Vnode * vnode;
         Snap_Enode * ehead; // head of edge linked list
-        int * visitedArray;// size same as threads // used to indicate whether the node has beeen visited by the given thread
-        //this will have value as the source node which was being processed when it was visited last
         atomic<int> edge_status ; //0->edges havent been processed by any thread 
                                     // 1-> being processed 2->completed processing
         atomic<int> iter_edge_status;
         atomic<long> report_index;
 
-        int * dist_from_source;
       
     //is_reconstruct is true then end enode is marked
     Snap_Vnode(Vnode * vnode, Snap_Vnode * next_snap_vnode, bool is_reconstruct = false) {
@@ -90,10 +84,6 @@ class Snap_Vnode {
         else
             start_snap_Enode = new Snap_Enode(this->vnode-> ehead, (Snap_Enode *)set_mark((long)end_snap_Enode));           
         this -> ehead = start_snap_Enode;
-        this ->visitedArray = new int[total_threads]{0};
-
-        dist_from_source = new int[total_threads]{0};
-    
 
         iter_edge_status = {0};
         edge_status = {0};
@@ -107,9 +97,6 @@ class Snap_Vnode {
         this -> vnext = next_snap_vnode;
         Snap_Enode * start_snap_Enode = new Snap_Enode(this->vnode-> ehead, end_snap_Enode);
         this -> ehead = start_snap_Enode;
-        this ->visitedArray = new int[total_threads]{0};
-        dist_from_source = new int[total_threads]{0};
-      
 
         edge_status = {0};
         report_index = {-1};
@@ -124,8 +111,6 @@ class Snap_Vnode {
             tmp_next = tmp_next->enext;
             delete tmp;
         }
-        delete[] visitedArray;
-        delete[] dist_from_source;
     }
 };
 
@@ -276,8 +261,6 @@ class SnapCollector{
         atomic<bool> reconstruction_completed;
 
         atomic<bool> iteration_completed;
-        atomic<long> vertex_iter_counter;
-        atomic<long> vertex_reconstruct_counter;
 
 
         //Here head points to the "start_vnode" of the original graph 
@@ -297,9 +280,6 @@ class SnapCollector{
             
             reconstruction_completed = {false};
             iteration_completed = {false};
-
-            vertex_iter_counter = {0};
-            vertex_reconstruct_counter = {0};
 
         }
 
@@ -345,7 +325,7 @@ class SnapCollector{
         }
    
 
-          void iterator(fstream * logfile, bool debug){
+        void iterator(fstream * logfile, bool debug){
             if(debug)
                 (*logfile) << "Vertex Iteration" << endl;
             while( ! this->read_edge){
@@ -410,25 +390,13 @@ class SnapCollector{
             }
           
             Snap_Vnode * snap_edge_vertex_ptr = head_snap_Vnode->vnext;// used to identify current vertex we are iterating
+            int tmp  = 0;
             //iterate through the edge
             ///ist iteration
 
-            long counter = 0;
-            long loc_vertex_iter_counter;
-
-            while (!this->iteration_completed){
-
-                loc_vertex_iter_counter = this->vertex_iter_counter++;
-
-                while(!is_marked_ref((long)snap_edge_vertex_ptr) and counter < loc_vertex_iter_counter){
-                    snap_edge_vertex_ptr = snap_edge_vertex_ptr->vnext;
-                    counter++;
-                }
+            while (!is_marked_ref((long)snap_edge_vertex_ptr) and !this->iteration_completed){
                 
-                //reached end of vertex list
-                if(is_marked_ref((long)snap_edge_vertex_ptr))
-                    break;
-                int tmp = 0;    
+                tmp = 0;    
                 if(atomic_compare_exchange_strong(&snap_edge_vertex_ptr->iter_edge_status , &tmp , 1)){
                     Snap_Enode *curr_snap_Enode = snap_edge_vertex_ptr->ehead;//next of ehead will never me marked
                     Snap_Enode *next_snap_Enode = curr_snap_Enode->enext.load();
@@ -471,25 +439,14 @@ class SnapCollector{
 
 
                 }
+                snap_edge_vertex_ptr = snap_edge_vertex_ptr->vnext;
             }
 
             //2nd iteration
             snap_edge_vertex_ptr = head_snap_Vnode->vnext;
-            int tmp;
 
             while (!is_marked_ref((long)snap_edge_vertex_ptr) and !this->iteration_completed){
-                if(snap_edge_vertex_ptr->iter_edge_status != 2){
-                    tmp = 0;
-                    //if node is 
-                    if(!atomic_compare_exchange_strong(&snap_edge_vertex_ptr->iter_edge_status , &tmp , 1)){
-                        if(tmp == 2){
-                            //some other node has already completed
-                            snap_edge_vertex_ptr = snap_edge_vertex_ptr->vnext;
-                            continue;
-                        }
-                        
-                    }
-
+                if(snap_edge_vertex_ptr->iter_edge_status == 1){
                     Snap_Enode *curr_snap_Enode = snap_edge_vertex_ptr->ehead;//next of ehead will never me marked
                     Snap_Enode *next_snap_Enode = curr_snap_Enode->enext.load();
                     while(get_unmarked_ref((long)next_snap_Enode) != (long)end_snap_Enode){
@@ -596,7 +553,7 @@ class SnapCollector{
             }
         }
 
-         void reconstructUsingReports(fstream * logfile , bool debug){
+        void reconstructUsingReports(fstream * logfile , bool debug){
             Snap_Vnode *next_V = head_snap_Vnode;
            
             vector<VertexReport> *vreports  = sorted_vertex_reports_ptr.load();
@@ -729,24 +686,10 @@ class SnapCollector{
              if(debug)
                 *logfile << "Ist Iteration "<< endl; 
             long ereport_size = edge_reports->size();
-            long counter = 0;
-            long loc_vertex_reconstruct_counter;
             //ist iteration
-            while( !this->reconstruction_completed){
+            while(!is_marked_ref((long)loc_snap_vertex_ptr) and !this->reconstruction_completed){
                 int tmp = 0;    
                 long prev_index = -1;
-                loc_vertex_reconstruct_counter = this->vertex_reconstruct_counter++;
-
-                while(!is_marked_ref((long)loc_snap_vertex_ptr) and counter < loc_vertex_reconstruct_counter){
-                    loc_snap_vertex_ptr = loc_snap_vertex_ptr->vnext;
-                    counter++;
-                }
-
-                //reached end of vertex list
-                if(is_marked_ref((long)loc_snap_vertex_ptr))
-                    break;
-
-
                 if(atomic_compare_exchange_strong(&loc_snap_vertex_ptr->edge_status , &tmp , 1)){
                     if(debug)
                         *logfile << "Processing node " << loc_snap_vertex_ptr->vnode->val << "(" <<loc_snap_vertex_ptr->vnode<< ")" << endl; 
@@ -917,7 +860,7 @@ class SnapCollector{
                     atomic_compare_exchange_strong(&loc_snap_vertex_ptr->edge_status , &tmp_edge_status , 2);
                 }
 
-                //loc_snap_vertex_ptr = loc_snap_vertex_ptr->vnext;
+                loc_snap_vertex_ptr = loc_snap_vertex_ptr->vnext;
             }
 
             if(debug){
@@ -934,16 +877,7 @@ class SnapCollector{
             {
                 long prev_index = -1;
                 //if snap vertex edge status = 1 ie. edges are still not processed completely
-                if(loc_snap_vertex_ptr->edge_status != 2){
-                    int tmp = 0;
-                    if(!atomic_compare_exchange_strong(&loc_snap_vertex_ptr->edge_status , &tmp , 1)){
-                        if(tmp == 2){
-                            //some other node has already completed
-                            loc_snap_vertex_ptr = loc_snap_vertex_ptr->vnext;
-                            continue;
-                        }
-                        
-                    }
+                if(loc_snap_vertex_ptr->edge_status == 1){
                     Snap_Enode * prev_snap_edge = loc_snap_vertex_ptr->ehead;
                     Snap_Enode * curr_snap_edge = loc_snap_vertex_ptr->ehead->enext;
                     Snap_Vnode * dest_vsnap_ptr = head_snap_Vnode->vnext;
@@ -1136,69 +1070,7 @@ class SnapCollector{
         }
 
       
-                  /**
-     * @brief This method returns the shortest path from source s to other vertices
-     * 
-     */
-    int max_dist_for_source(Snap_Vnode *s ,int tid ,bool debug,fstream * logfile){
-        int max_dist = 0;
-        int source_id = s->vnode->val;
-        s->dist_from_source[tid] = 0;
-        s->visitedArray[tid] = source_id;
-        queue <Snap_Vnode *> Q;
-        Q.push(s);
-
-        Snap_Enode * eHead;
-        while(!Q.empty()){
-            
-            Snap_Vnode * pred_v = Q.front();
-            //cout << "In loop " << pred_v << endl;
-            int pred_v_dist = pred_v->dist_from_source[tid];
-            Q.pop();
-            eHead = pred_v->ehead;
-            //(*logfile) << "pred_v " << pred_v << " pred_v->v_path_cnt " << pred_v->v_path_cnt[0] << endl;
-            //(*logfile) << "pred_v " << pred_v << " pred_v->path_cnt " << pred_v->path_cnt[0] << endl;
-            for(Snap_Enode * itNode = eHead->enext.load(); !is_marked_ref((long)itNode); itNode = itNode ->enext.load()){
-                //cout << "In loop 2" << endl;
-                int dist = pred_v_dist + 1;
-                Snap_Vnode* dest_v = itNode->d_vnode;
-                if(dest_v->visitedArray[tid] != source_id)//destination vertex is not visited
-                {
-
-                    dest_v->visitedArray[tid] = source_id;
-                    dest_v->dist_from_source[tid] = dist;
-                    if(dist > max_dist)
-                        max_dist = dist;                    
-                    Q.push(dest_v);
-                }
-            }
-        }
-
-        return max_dist;
-    }
-
-
-    float get_diameter(int tid , fstream * logfile,bool debug){
-
-        int max_dist = 0;
-        Snap_Vnode * vsnode = this->head_snap_Vnode;
-        if(is_marked_ref((long)vsnode->vnext.load())){
-            return 0;
-        }
-        vsnode = vsnode->vnext;
-
-        while(!is_marked_ref((long)vsnode->vnext.load())){
-            
-            int dist= this->max_dist_for_source(vsnode , tid, debug, logfile);
-            if(dist > max_dist)
-                max_dist = dist; 
-            vsnode = vsnode->vnext;
-        }
-
-    
-        return max_dist;
-    }
-
+     
         void print_snap_graph(fstream *logfile){
             (*logfile) << "Snapped Graph ---------- of snapshot : " << this  << endl;
             Snap_Vnode * snap_vnode = head_snap_Vnode->vnext;
