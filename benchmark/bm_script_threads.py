@@ -14,7 +14,7 @@ date_time_obj =now.strftime('%H_%M_%S')
 
 threads = [13,26,52,78,104] 
 #threads = [4,8]
-algos = [ "icdcn_DIA_resp" , "report_DIA_resp" , "opodis_DIA_resp" ]
+algos = [ "icdcn_BC_resp" , "report_BC_resp" , "opodis_BC_resp" ]
 #algos = ["report_BC_tt_ss_update"]
 debug = False
 main_file = "main.cpp"
