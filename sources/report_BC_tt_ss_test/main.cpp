@@ -551,10 +551,8 @@ void print_graph_init(fstream *logfile , Vnode * graph_headv){
 
 atomic<bool> continue_exec;
 
-/**
- * @brief paramteter that are to be passed on to the threads
- * 
- */
+
+
 struct thread_args{
     GraphList *graph ;
     string  logfilename ;
@@ -563,24 +561,26 @@ struct thread_args{
     int max_nodes;
     int max_threads;
     double * ops;
-    double * max_times;
-  double * avg_times;
-    
+    double * ss_max_times;
+    double * ss_avg_times;
+    double * dia_max_times;
+    double * dia_avg_times;
+    double * total_max_times;
+    double * total_avg_times;
     vector<double> * dist_prob;
     
 };
+
+
 
 void copy_snapcollector(SnapCollector_copy * newSC , SnapCollector * oldSC){
     Snap_Vnode * snap_vnode = oldSC->head_snap_Vnode->vnext;
 
     unordered_map<long, long> umap;
-    Snap_Vnode_copy *tmpPtr = nullptr;
 
     Snap_Vnode_copy * curr_vnode = newSC->head_snap_Vnode;
     while(get_unmarked_ref((long)snap_vnode) != (long)end_snap_Vnode){
         Snap_Vnode_copy *new_vnode = new Snap_Vnode_copy(snap_vnode->vnode );
-        if(tmpPtr == nullptr)
-            tmpPtr = new_vnode;
         curr_vnode->vnext = new_vnode;
         curr_vnode = new_vnode; 
 
@@ -613,8 +613,6 @@ void copy_snapcollector(SnapCollector_copy * newSC , SnapCollector * oldSC){
 }
 
 
-
-
 /**
  * @brief 
  * 
@@ -640,12 +638,17 @@ void *thread_funct(void * t_args){
     int max_threads = ((struct thread_args *)t_args)->max_threads;
     //int prob_arr[4] = ((struct thread_args *)t_args)->prob_arr;
     double * ops = ((struct thread_args *)t_args)->ops;
-    double * avg_times = ((struct thread_args *)t_args)->avg_times;
-    double * max_times = ((struct thread_args *)t_args)->max_times;
-        vector<double> tts;//list of time taken for snapshot
+    double * ss_avg_times = ((struct thread_args *)t_args)->ss_avg_times;
+    double * ss_max_times = ((struct thread_args *)t_args)->ss_max_times;
+    double * dia_avg_times = ((struct thread_args *)t_args)->dia_avg_times;
+    double * dia_max_times = ((struct thread_args *)t_args)->dia_max_times;
+    double * total_avg_times = ((struct thread_args *)t_args)->total_avg_times;
+    double * total_max_times = ((struct thread_args *)t_args)->total_max_times;
+    vector<double> ss_tts;
+    vector<double> total_tts;
+    vector<double> dia_tts;
     vector<double> * dist_prob = ((struct thread_args *)t_args)->dist_prob;
 
-    
     
     fstream logfile_th;
     if(debug){ 
@@ -657,7 +660,6 @@ void *thread_funct(void * t_args){
     discrete_distribution<> d(dist_prob->begin() , dist_prob->end());
     int op_index;
     while(continue_exec){
-       
      
         op_index = d(gen);
         switch(op_index) {
@@ -670,11 +672,7 @@ void *thread_funct(void * t_args){
                 graph->AddVertex(rand_node_id,thread_num,&logfile_th,debug );
                 chrono::high_resolution_clock::time_point endT = chrono::high_resolution_clock::now();
                 double timeTaken = chrono::duration_cast<chrono::microseconds>(endT-startT).count() ;
-
-                tts.push_back(timeTaken);
-                if (max_times[thread_num] < timeTaken){
-                    max_times[thread_num] = timeTaken;
-                }
+                total_tts.push_back(timeTaken);
                 //if(continue_exec)
                 //    ops[thread_num]++;
             }
@@ -689,11 +687,7 @@ void *thread_funct(void * t_args){
                 graph->RemoveVertex(rand_node_id,thread_num,&logfile_th, debug);
                 chrono::high_resolution_clock::time_point endT = chrono::high_resolution_clock::now();
                 double timeTaken = chrono::duration_cast<chrono::microseconds>(endT-startT).count() ;
-
-                tts.push_back(timeTaken);
-                if (max_times[thread_num] < timeTaken){
-                    max_times[thread_num] = timeTaken;
-                    }
+                total_tts.push_back(timeTaken);
                 //if(continue_exec)
                 //    ops[thread_num]++;
             }
@@ -712,11 +706,7 @@ void *thread_funct(void * t_args){
                 graph->AddEdge(rand_source , rand_dest , thread_num,&logfile_th,debug);
                 chrono::high_resolution_clock::time_point endT = chrono::high_resolution_clock::now();
                 double timeTaken = chrono::duration_cast<chrono::microseconds>(endT-startT).count() ;
-
-                tts.push_back(timeTaken);
-                if (max_times[thread_num] < timeTaken){
-                    max_times[thread_num] = timeTaken;
-                }
+                total_tts.push_back(timeTaken);
                 //if(continue_exec)
                 //    ops[thread_num]++;
             }
@@ -734,11 +724,7 @@ void *thread_funct(void * t_args){
                 graph->RemoveE(rand_source , rand_dest , thread_num,&logfile_th,debug);
                 chrono::high_resolution_clock::time_point endT = chrono::high_resolution_clock::now();
                 double timeTaken = chrono::duration_cast<chrono::microseconds>(endT-startT).count() ;
-
-                tts.push_back(timeTaken);
-                if (max_times[thread_num] < timeTaken){
-                    max_times[thread_num] = timeTaken;
-                }
+                total_tts.push_back(timeTaken);
                 //if(continue_exec)
                 //    ops[thread_num]++;
             }
@@ -756,11 +742,8 @@ void *thread_funct(void * t_args){
                 graph->ContainsE(rand_source , rand_dest , thread_num,&logfile_th,debug);
                 chrono::high_resolution_clock::time_point endT = chrono::high_resolution_clock::now();
                 double timeTaken = chrono::duration_cast<chrono::microseconds>(endT-startT).count() ;
-
-                tts.push_back(timeTaken);
-                if (max_times[thread_num] < timeTaken){
-                    max_times[thread_num] = timeTaken;
-                }                //if(continue_exec)
+                total_tts.push_back(timeTaken);
+                //if(continue_exec)
                 //    ops[thread_num]++;
             }
             break;
@@ -773,47 +756,67 @@ void *thread_funct(void * t_args){
                 chrono::high_resolution_clock::time_point startT = chrono::high_resolution_clock::now();
                 graph->ContainsV(node_id , thread_num,&logfile_th,debug);
                 chrono::high_resolution_clock::time_point endT = chrono::high_resolution_clock::now();
-
-                //if(continue_exec)chrono::high_resolution_clock::time_point endT = chrono::high_resolution_clock::now();
                 double timeTaken = chrono::duration_cast<chrono::microseconds>(endT-startT).count() ;
-
-                tts.push_back(timeTaken);
-                if (max_times[thread_num] < timeTaken){
-                    max_times[thread_num] = timeTaken;
-                }
+                total_tts.push_back(timeTaken);
+                //if(continue_exec)
                 //    ops[thread_num]++;
             }
         break;
         case 6:
             //snapshot
             {       
-                    
                     chrono::high_resolution_clock::time_point startT = chrono::high_resolution_clock::now();
+
                     //print_graph(&logfile_th , graph->head);
-                    SnapCollector * sc =  takeSnapshot(graph->head , max_threads, &logfile_th,debug);
+                    SnapCollector * sc =  takeSnapshot(graph->head , max_threads, &logfile_th,debug ,thread_num);
+                    //////
+                        //if(debug){
+                            //sc->print_snap_graph_new(&logfile_th);
+                            //continue_exec = false;
+                            //break;
+                        //}
+                    //////
+                    chrono::high_resolution_clock::time_point temp = chrono::high_resolution_clock::now();
+
                     //int key = rand() % max_nodes;
                     //sc->getBFS(&logfile_th , debug , thread_num, key );
+
+
                     SnapCollector_copy *newSC = new SnapCollector_copy(graph->head);
 
                     copy_snapcollector(newSC , sc);
+                    ////delete sc;
 
-                    int node_id = rand() % max_nodes + 1; 
-                   
-                    float bc = newSC->get_BC(node_id , thread_num, &logfile_th,debug);
+                    
+                     int node_id = rand() % max_nodes + 1; 
+                    
+                     float bc = newSC->get_BC(node_id , thread_num, &logfile_th,debug);
+                    //cout << bc << endl;
+                    //int key = rand() % max_nodes;
+                    //cout << bc << endl;
                     chrono::high_resolution_clock::time_point endT = chrono::high_resolution_clock::now();
-                    double timeTaken = chrono::duration_cast<chrono::microseconds>(endT-startT).count() ;
-
-                    tts.push_back(timeTaken);
-                    if (max_times[thread_num] < timeTaken){
-                        max_times[thread_num] = timeTaken;
+                    double total_timeTaken = chrono::duration_cast<chrono::microseconds>(endT-startT).count() ;
+                    double ss_timeTaken = chrono::duration_cast<chrono::microseconds>(temp-startT).count() ;
+                    double dia_timeTaken = chrono::duration_cast<chrono::microseconds>(endT-temp).count() ;
+                    ss_tts.push_back(ss_timeTaken);
+                    if (ss_max_times[thread_num] < ss_timeTaken){
+                        ss_max_times[thread_num] = ss_timeTaken;
+                    }
+                    dia_tts.push_back(dia_timeTaken);
+                    if (dia_max_times[thread_num] < dia_timeTaken){
+                        dia_max_times[thread_num] = dia_timeTaken;
+                    }
+                    total_tts.push_back(total_timeTaken);
+                    if (total_max_times[thread_num] < total_timeTaken){
+                        total_max_times[thread_num] = total_timeTaken;
                     }
                     
                     if(debug){ 
                         
                         sc->print_snap_graph(&logfile_th);
                     }
-                    delete newSC;
-                
+
+                    //delete newSC;
                
             }
             break;
@@ -825,17 +828,33 @@ void *thread_funct(void * t_args){
         logfile_th.close();
     
     //calculate average of all the timetaken
-    if(tts.size() > 0){
-        double total_tts = 0;
-        for(double tt : tts){
-            total_tts += tt;
+    if(ss_tts.size() > 0){
+        double tts_sum = 0;
+        for(double tt : ss_tts){
+            tts_sum += tt;
         }
-        avg_times[thread_num] = total_tts / tts.size();
+        ss_avg_times[thread_num] = tts_sum / ss_tts.size();
+
+        tts_sum = 0;
+        for(double tt : dia_tts){
+            tts_sum += tt;
+        }
+        dia_avg_times[thread_num] = tts_sum / dia_tts.size();
+
+        tts_sum = 0;
+        for(double tt : total_tts){
+            tts_sum += tt;
+        }
+        total_avg_times[thread_num] = tts_sum / total_tts.size();
 
     }
+
+   
     return nullptr;
 
 }
+
+
 
 
 typedef struct init_graph_thread_args{
@@ -1076,8 +1095,12 @@ int main(int argc, char** argv) {
     //cout << "Marked End snap Enode " << (Snap_Enode *)get_marked_ref((long) end_snap_Enode) << endl;
     //cout << "End snap Vnode " << end_snap_Vnode << endl;
     //cout << "Marked End snap Vnode " << (Snap_Vnode*) get_marked_ref((long)end_snap_Vnode) << endl;
-    double * max_times = new double[num_of_threads];
-    double * avg_times = new double[num_of_threads];
+    double * ss_max_times = new double[num_of_threads];
+    double * ss_avg_times = new double[num_of_threads];
+    double * dia_max_times = new double[num_of_threads];
+    double * dia_avg_times = new double[num_of_threads];
+    double * total_max_times = new double[num_of_threads];
+    double * total_avg_times = new double[num_of_threads];
     for( int i=0;i < num_of_threads ;i++){
 
         
@@ -1089,8 +1112,12 @@ int main(int argc, char** argv) {
         t_args[i].max_threads = num_of_threads;
         t_args[i].debug = debug;
         t_args[i].ops = ops;
-        t_args[i].max_times = max_times;
-        t_args[i].avg_times = avg_times;
+        t_args[i].ss_max_times = ss_max_times;
+        t_args[i].ss_avg_times = ss_avg_times;
+        t_args[i].total_max_times = total_max_times;
+        t_args[i].total_avg_times = total_avg_times;
+        t_args[i].dia_max_times = dia_max_times;
+        t_args[i].dia_avg_times = dia_avg_times;
         
         t_args[i].dist_prob = &dist_prob;
         pthread_create(&threads[i], NULL, thread_funct, &t_args[i]);
@@ -1107,10 +1134,10 @@ int main(int argc, char** argv) {
 
     for( int i = 0;i < num_of_threads ; i++){
         //check max
-        if(max_time < max_times[i]){
-            max_time = max_times[i];
+        if(max_time < ss_max_times[i]){
+            max_time = ss_max_times[i];
         }
-        avg_time += avg_times[i];
+        avg_time += ss_avg_times[i];
     }
 
     avg_time = avg_time / num_of_threads;
@@ -1119,8 +1146,42 @@ int main(int argc, char** argv) {
     cout << avg_time << fixed << endl;
     cout << max_time << fixed << endl;
 
+    max_time = 0;
+    avg_time = 0;
+
+    for( int i = 0;i < num_of_threads ; i++){
+        //check max
+        if(max_time < dia_max_times[i]){
+            max_time = dia_max_times[i];
+        }
+        avg_time += dia_avg_times[i];
+    }
+
+    avg_time = avg_time / num_of_threads;
+
+
+    cout << avg_time << fixed << endl;
+    cout << max_time << fixed << endl;
+
+    max_time = 0;
+    avg_time = 0;
+
+    for( int i = 0;i < num_of_threads ; i++){
+        //check max
+        if(max_time < total_max_times[i]){
+            max_time = total_max_times[i];
+        }
+        avg_time += total_avg_times[i];
+    }
+
+    avg_time = avg_time / num_of_threads;
+
+    cout << avg_time << fixed << endl;
+    cout << max_time << fixed << endl;
+
     
     opfile.close();
     return 0;
 }
+
 
