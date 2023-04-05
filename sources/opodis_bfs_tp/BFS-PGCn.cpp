@@ -788,14 +788,14 @@ void initGraphFromFile(string file, int NT, int tid){
   
   int i,j, e=0;
   //cin>>i;
-  for(i=1;i<=n;i++){
+  for(i=1;i<=2*n;i++){
         //v_ = rand()%n;
         insertinit(i,NT, tid);
    }
    //cout<<
   for(j=1; j<=m; j = j+1){
 	cinn>>u>>v;
-	PutE1(u,v, tid); 
+	PutE1(u+1,v+1, tid); 
 	e++;
       }   
   //cout<<"Edge:"<<e<<endl;

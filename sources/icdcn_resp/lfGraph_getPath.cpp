@@ -221,7 +221,7 @@ void init(){
    //cout<<
   for(j=1; j<=m; j = j+1){
 	cinn>>u>>v;
-    AddE(u,v);
+    AddE(u+1,v+1);
 	e++;
       }   
   //cout<<"Edge:"<<e<<endl;

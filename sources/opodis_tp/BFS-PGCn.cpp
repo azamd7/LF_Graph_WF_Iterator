@@ -796,7 +796,7 @@ void initGraphFromFile(string file, int NT, int tid){
    //cout<<
   for(j=1; j<=m; j = j+1){
 	cinn>>u>>v;
-	PutE1(u,v, tid); 
+	PutE1(u+1,v+1, tid); 
 	e++;
       }   
   //cout<<"Edge:"<<e<<endl;

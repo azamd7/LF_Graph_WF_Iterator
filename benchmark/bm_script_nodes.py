@@ -12,21 +12,27 @@ now = datetime.now() # current date and time
 date_time_obj =now.strftime('%H_%M_%S') 
 
 
-threads = 52 
+threads = 104 
 #######
 #threads = 8
 #######
-algos = [ "report_tt_ss" ]
+algos = [ "report_resp","icdcn_resp" , "opodis_resp" ]
 
 debug = False
 main_file = "main.cpp"
-iterations = 7
+iterations = 6
 test_duration = "10" #no of sec before stop executions
-init_vertices = [10**4 * i for i in range(1,7)]
+init_vertices_map = { 
+    6000 : "../input/datasets/p2p-Gnutella06",
+    10000 : "../input/datasets/p2p-Gnutella10",
+    22000 : "../input/datasets/p2p-Gnutella22",                    
+    26000 : "../input/datasets/p2p-Gnutella26",              
+    36000 : "../input/datasets/p2p-Gnutella36"
+}
 #######
 #init_vertices = [10**4 * i for i in range(4,7)]
 #######
-init_edges = [2 * i for i in init_vertices]
+#init_edges = [2 * i for i in init_vertices]
 
 #files
 maxt_output_file_fmt = '../output/{0}_op_' + date_time_obj +"_maxt_{1}" +  '.csv'
@@ -35,7 +41,7 @@ script_log_file = "../script_log/" + date_time_obj + ".txt"
 
 #commands
 cmd1 = "g++ -std=c++11 -pthread -O3 -o ../sources/{0}/a.out ../sources/{0}/" + main_file
-cmd2 = "../sources/{0}/a.out ../log/{1} {2} {3} {4} {5}"
+cmd2 = "../sources/{0}/a.out ../log/{1} {2} {3} {4} {5} {6}"
 
 
 # * 0->add vertex
@@ -57,7 +63,7 @@ with open(script_log_file, 'w+') as log_f_object:
     for key in dist_probs.keys(): 
         print("\n\n\n\n\n\nProbablity Dist: "+ key +" " + str( dist_probs[key])  ,file = log_f_object,flush = True)
         
-        for i in range(0,11,2):
+        for i in range(2,11,2):
             dist_prob = dist_probs[key].copy()
             print("\n\nSnapshot Dist: "+str(i)  ,file = log_f_object,flush = True)
             if(i != 0):
@@ -101,11 +107,11 @@ with open(script_log_file, 'w+') as log_f_object:
                         proc.wait()
 
                     number_of_triangles_parr = 0
-                    for p in range(len(init_vertices)):
-                        init_node_cnt = init_vertices[p]
-                        init_edge_cnt = init_edges[p]
-                        max_lst = [init_node_cnt]
-                        avg_lst = [init_node_cnt]
+                    for init_node_cnt in sorted(init_vertices_map.keys()):
+                        init_edge_cnt = 2 * init_node_cnt
+                        init_file = init_vertices_map[init_node_cnt]
+                        max_lst = [init_file]
+                        avg_lst = [init_file]
                         print("Init node cnt : " + str(init_node_cnt),file = log_f_object,flush = True)
                         
                         for algo in algos:
@@ -116,7 +122,7 @@ with open(script_log_file, 'w+') as log_f_object:
                             if debug:
                                 cmd += " debug"
                             print("Algo : "+ algo,file = log_f_object,flush = True)
-                            cmd = cmd.format(algo,date_time_obj,str(threads),test_duration,str(init_node_cnt),str(init_edge_cnt))
+                            cmd = cmd.format(algo,date_time_obj,str(threads),test_duration,str(init_node_cnt),str(init_edge_cnt), init_file)
                             avg_time_taken_list = []
                             max_time_taken_list = []
 

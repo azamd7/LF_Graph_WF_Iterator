@@ -977,7 +977,10 @@ GraphList * create_graph_from_file(string file){
     }
     for(j=1; j<=m; j = j+1){
 	    cinn>>u>>v;
-        graph->AddEdge(u,v , -1 , nullptr , false);
+        int ret = graph->AddEdge(u+1,v+1 , -1 , nullptr , false);
+        if(ret != 3){
+            cout << "Error: Init Edge not added" << endl;
+        }
 	    e++;
       }   
     return graph;
